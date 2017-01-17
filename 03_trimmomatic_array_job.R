@@ -90,7 +90,7 @@ writeLines('\n\n', oFile)
 ## write array job lines
 writeLines("# Parse parameter file to get variables.
 number=$SGE_TASK_ID
-paramfile=trimmomatic_S032_param.txt
+paramfile=trimmomatic_param.txt
  
 inr1=`sed -n ${number}p $paramfile | awk '{print $1}'`
 inr2=`sed -n ${number}p $paramfile | awk '{print $2}'`
