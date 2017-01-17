@@ -10,5 +10,10 @@ Transcriptomic changes in organoid small intestinal epithelial cells upon intera
   * create database entries for the samples  
 3. 02_fastQC.R  
   * QA checks on the FASTQ files using the class CFastqQuality  
+4. 03_trimmomatic_array_job.R  
+  * writes a batch array job for hpc to use trimmomatic for read trimming  
+5. 04_fastQC_trimmed.R  
+  * QA checks on the trimmed FASTQ files using the class CFastqQuality  
+
 
   

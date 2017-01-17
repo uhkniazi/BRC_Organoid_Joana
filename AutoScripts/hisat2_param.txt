@@ -1,0 +1,9 @@
+input/trim_JNPool1_ATTACTCG_L004_R1_001.fastq.gz input/trim_JNPool1_ATTACTCG_L004_R2_001.fastq.gz output/Aligned/JNPool1_ATTACTCG_L004_R1_001.fastq.gz.sam
+input/trim_JNPool2_TCCGGAGA_L004_R1_001.fastq.gz input/trim_JNPool2_TCCGGAGA_L004_R2_001.fastq.gz output/Aligned/JNPool2_TCCGGAGA_L004_R1_001.fastq.gz.sam
+input/trim_JNPool3_CGCTCATT_L004_R1_001.fastq.gz input/trim_JNPool3_CGCTCATT_L004_R2_001.fastq.gz output/Aligned/JNPool3_CGCTCATT_L004_R1_001.fastq.gz.sam
+input/trim_JNPool4_GAGATTCC_L004_R1_001.fastq.gz input/trim_JNPool4_GAGATTCC_L004_R2_001.fastq.gz output/Aligned/JNPool4_GAGATTCC_L004_R1_001.fastq.gz.sam
+input/trim_JNPool5_ATTCAGAA_L004_R1_001.fastq.gz input/trim_JNPool5_ATTCAGAA_L004_R2_001.fastq.gz output/Aligned/JNPool5_ATTCAGAA_L004_R1_001.fastq.gz.sam
+input/trim_JNPool6_GAATTCGT_L004_R1_001.fastq.gz input/trim_JNPool6_GAATTCGT_L004_R2_001.fastq.gz output/Aligned/JNPool6_GAATTCGT_L004_R1_001.fastq.gz.sam
+input/trim_JNPool7_CTGAAGCT_L004_R1_001.fastq.gz input/trim_JNPool7_CTGAAGCT_L004_R2_001.fastq.gz output/Aligned/JNPool7_CTGAAGCT_L004_R1_001.fastq.gz.sam
+input/trim_JNPool8_TAATGCGC_L004_R1_001.fastq.gz input/trim_JNPool8_TAATGCGC_L004_R2_001.fastq.gz output/Aligned/JNPool8_TAATGCGC_L004_R1_001.fastq.gz.sam
+input/trim_JNPool9_CGGCTATG_L004_R1_001.fastq.gz input/trim_JNPool9_CGGCTATG_L004_R2_001.fastq.gz output/Aligned/JNPool9_CGGCTATG_L004_R1_001.fastq.gz.sam
