@@ -52,7 +52,7 @@ cvArrayJob = paste0('#$ -t 1-', nrow(dfCounts)/2)
 cvInput = 'input/'
 cvOutput = 'output/Aligned/'
 cvHisat2 = '/opt/apps/bioinformatics/hisat2/2.0.4/hisat2'
-cvGeneIndex = '/users/k1625253/brc_scratch/Data/MetaData/GenomeIndex/hg38_hisat2/hg38/genome'
+cvGeneIndex = '/users/k1625253/brc_scratch/Data/MetaData/GenomeIndex/hg38_spikein_hisat2/hg38/genome'
 
 # create a parameter file and shell script
 dir.create('AutoScripts')

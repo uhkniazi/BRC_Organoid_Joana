@@ -65,18 +65,18 @@ lOb = lapply(ivFilesIndex, function(x){
 })
 
 setwd(gcswd)
-n = make.names(paste('CFastqQuality organoids rna_seq trimmed rds'))
+n = make.names(paste('CFastqQuality organoids rna_seq trimmed with less restrictions rds'))
 lOb$meta = dfSample
-lOb$desc = paste('CFastqQuality object from organoids rna_seq trimmed run', date())
+lOb$desc = paste('CFastqQuality object from organoids rna_seq trimmed run with less restrictions', date())
 n2 = paste0('~/Data/MetaData/', n)
 save(lOb, file=n2)
 
 ## note: comment out as this entry has been made in db
-library('RMySQL')
+# library('RMySQL')
 # db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
 # dbListTables(db)
 # dbListFields(db, 'MetaFile')
-# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/', comment='organoids project FASTQ file quality data after trimming')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/', comment='organoids project FASTQ file quality data after trimming with less restrictions on trimmomatic')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 # dbDisconnect(db)
 
@@ -84,7 +84,7 @@ library('RMySQL')
 getwd()
 lOb$desc = NULL
 lOb$meta = NULL
-pdf(file='Results/qa.fastq_trimmed.pdf')
+pdf(file='Results/qa.fastq_trimmed_less_restrictions.pdf')
 
 iReadCount = sapply(lOb, CFastqQuality.getReadCount)
 iReadCount = iReadCount/1e+6
@@ -107,9 +107,9 @@ dev.off(dev.cur())
 ## some samples may have quality drops which can be seen by clustering
 hc = hclust(dist(t(mQuality)))
 plot(hc, main='Clustering of Trimmed data based on Per base quality', cex=0.6, xlab='', sub='')
-abline(h = 2, col=2)
+abline(h = 3, col=2)
 
-c = cutree(hc, h=2)
+c = cutree(hc, h=3)
 table(c)
 # draw for each of the clusters
 sapply(unique(c), function(x){
