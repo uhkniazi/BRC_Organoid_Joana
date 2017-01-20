@@ -137,5 +137,6 @@ close(oFile)
 dbDisconnect(db)
 
 ### update database with the file names
+# dfNewData$group1 = 'Trimmomatic strict criteria'
 # dbWriteTable(db, name='File', value = dfNewData, append=T, row.names=F)
 # dbDisconnect(db)
