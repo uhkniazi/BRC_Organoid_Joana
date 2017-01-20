@@ -121,520 +121,127 @@ table(oRes.CLP_SI.vs.SI$padj < 0.1)
 table(oRes.CLP_SI.vs.SI_compM$padj < 0.1)
 table(oRes.SI.vs.SI_compM$padj < 0.1)
 
+# perform independent filtering 
+iCutoff = 2
+fKeep = rowMeans(counts(oDseq, normalized=T)) > iCutoff
+table(fKeep)
+
+dim(oRes.CLP_SI.vs.SI)
+oRes.CLP_SI.vs.SI = oRes.CLP_SI.vs.SI[fKeep,]
+dim(oRes.CLP_SI.vs.SI)
+
+oRes.CLP_SI.vs.SI_compM = oRes.CLP_SI.vs.SI_compM[fKeep,]
+dim(oRes.CLP_SI.vs.SI_compM)
+
+oRes.SI.vs.SI_compM = oRes.SI.vs.SI_compM[fKeep,]
+
+oRes.CLP_SI.vs.SI$padj = p.adjust(oRes.CLP_SI.vs.SI$pvalue, method = 'BH')
+oRes.CLP_SI.vs.SI_compM$padj = p.adjust(oRes.CLP_SI.vs.SI_compM$pvalue, method = 'BH')
+oRes.SI.vs.SI_compM$padj = p.adjust(oRes.SI.vs.SI_compM$pvalue, method = 'BH')
+
+table(oRes.CLP_SI.vs.SI$padj < 0.1)
+table(oRes.CLP_SI.vs.SI_compM$padj < 0.1)
+table(oRes.SI.vs.SI_compM$padj < 0.1)
 
 # get results with significant p-values
-dfD.vs.C = as.data.frame(oRes.D.vs.C[which(oRes.D.vs.C$padj < 0.1),])
-dfH.vs.C = as.data.frame(oRes.H.vs.C[which(oRes.H.vs.C$padj < 0.1),])
-dfD.vs.H = as.data.frame(oRes.D.vs.H[which(oRes.D.vs.H$padj < 0.1),])
+dfCLP_SI.vs.SI = as.data.frame(oRes.CLP_SI.vs.SI[which(oRes.CLP_SI.vs.SI$padj < 0.1),])
+dfCLP_SI.vs.SI_compM = as.data.frame(oRes.CLP_SI.vs.SI_compM[which(oRes.CLP_SI.vs.SI_compM$padj < 0.1),])
+dfSI.vs.SI_compM = as.data.frame(oRes.SI.vs.SI_compM[which(oRes.SI.vs.SI_compM$padj < 0.1),])
 
-nrow(dfD.vs.C)
-nrow(dfD.vs.H)
-nrow(dfH.vs.C)
+dim(dfCLP_SI.vs.SI)
+dim(dfCLP_SI.vs.SI_compM)
+dim(dfSI.vs.SI_compM)
 
+### create some volcano plots with annotations
+## choose the comparison for plotting
+library(org.Mm.eg.db)
+# add annotation to the data set after selecting comparison
+res = as.data.frame(oRes.CLP_SI.vs.SI)
 
+rn = rownames(res)
+df = select(org.Mm.eg.db, as.character(rn), c('SYMBOL'), 'ENTREZID')
+head(df); head(res)
+df = df[!duplicated(df$ENTREZID),]
+rownames(df) = df$ENTREZID
+dfPlot = res
+dfPlot = cbind(dfPlot[rn,], df[rn,])
+dfPlot = na.omit(dfPlot)
 
+## write csv file
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.SI.xls')
 
+dfGenes = data.frame(P.Value=dfPlot$pvalue, logFC=dfPlot$log2FoldChange, adj.P.Val = dfPlot$padj, SYMBOL=dfPlot$SYMBOL)
 
-
-
-
-
-# remove count matrix objects
-rm(list=ls()[grepl('count', ls(), ignore.case = T)])
-print(ls()[grepl('^f', ls(), ignore.case = T)])
-rm(list=ls()[grepl('^f', ls(), ignore.case = T)])
-print(ls()[grepl('^df', ls(), ignore.case = T)])
-rm(list=ls()[grepl('^df', ls(), ignore.case = T)])
-
-
-########## DE Analysis using glmer
-library(multcomp)
-#library(lme4)
-library(glmmADMB)
-
-## use the data matrix  a matrix of data
-mDat = round(exprs(oExp),0)
-str(mDat)
-
-# remove low expression features
-i = rowMeans(mDat)
-i = which(i > 3)
-mDat = mDat[i,]
-str(mDat)
-
-# fit glm to each feature
-index = 1:nrow(mDat)
-
-# check clock time
-ptm = proc.time()
-
-modelFunction = function(dat){
-  df = data.frame(resp=mDat[dat,], cond.time=oExp$fCondition.t, patient=oExp$fTitle)
-  return(tryCatch(glmmADMB::glmmadmb(resp ~ 0 + cond.time + (1 | patient), data=df, family = 'nbinom', link='log'), error=function(e) NULL))
+f_plotVolcano = function(dfGenes, main, p.adj.cut = 0.1, fc.lim = c(-3, 3)){
+  p.val = -1 * log10(dfGenes$P.Value)
+  fc = dfGenes$logFC
+  # cutoff for p.value y.axis
+  y.cut = -1 * log10(0.01)
+  col = rep('lightgrey', times=length(p.val))
+  c = which(dfGenes$adj.P.Val < p.adj.cut)
+  col[c] = 'red'
+  plot(fc, p.val, pch=20, xlab='Fold Change', ylab='-log10 P.Value', col=col, main=main, xlim=fc.lim)
+  abline(v = 0, col='grey', lty=2)
+  abline(h = y.cut, col='red', lty=2)
+  # second cutoff for adjusted p-values, ignore this set probs=0
+  y.cut = quantile(p.val[c], probs=0)
+  abline(h = y.cut, col='red')
+  # identify these genes
+  g = which(p.val > y.cut)
+  lab = dfGenes[g, 'SYMBOL']
+  text(dfGenes$logFC[g], y = p.val[g], labels = lab, pos=2, cex=0.6)
 }
 
-# modelFunction = function(dat){
-#   df = data.frame(resp=mDat[dat,], cond.time=oExp$fCondition.t, patient=oExp$fTitle)
-#   #return(tryCatch(glmer.nb(resp ~ 0 + cond.time + (1 | patient), data=df), warning=function(w) NULL, error=function(e) NULL))
-#   return(tryCatch(glmer.nb(resp ~ 0 + cond.time + (1 | patient), data=df), error=function(e) NULL))
-# }
+f_plotVolcano(dfGenes, 'CLP_SI vs SI')
 
-# lGlm = lapply(index, function(dat){
-#   return(glmer.nb(mDat[dat,] ~ 0 + cond.time + (1 | patient)))
-# })
+### repeat for second dataset
+res = as.data.frame(oRes.CLP_SI.vs.SI_compM)
 
-lGlm = lapply(index, modelFunction)
+rn = rownames(res)
+df = select(org.Mm.eg.db, as.character(rn), c('SYMBOL'), 'ENTREZID')
+head(df); head(res)
+df = df[!duplicated(df$ENTREZID),]
+rownames(df) = df$ENTREZID
+dfPlot = res
+dfPlot = cbind(dfPlot[rn,], df[rn,])
+dfPlot = na.omit(dfPlot)
 
-names(lGlm) = rownames(mDat)
+## write csv file
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.SI_compM.xls')
 
-ptm.end = proc.time()
+dfGenes = data.frame(P.Value=dfPlot$pvalue, logFC=dfPlot$log2FoldChange, adj.P.Val = dfPlot$padj, SYMBOL=dfPlot$SYMBOL)
+f_plotVolcano(dfGenes, 'CLP_SI vs SI_compM')
 
-# # total time took
-# > ptm.end - ptm
-# user   system  elapsed 
-# 6426.412  440.156 6758.919 ~ 2 hours
+### repeat for third contrast
+res = as.data.frame(oRes.SI.vs.SI_compM)
 
-## save this object in the database for future use
-## NOTE: don't run this segment of code again as object is already saved
-## commenting for safety
-# n = make.names(paste('list of glmer nb objects for keloids q10 rdup using glmmADMB rds'))
-# n2 = paste0('~/Data/MetaData/', n)
-# save(lGlm, file=n2)
-# 
-# library('RMySQL')
-# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-# dbListTables(db)
-# dbListFields(db, 'MetaFile')
-# df = data.frame(idData=2, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='list of glmer negative binomial objects for keloids q10 rdup using glmmADMB - resp ~ 0 + cond.time + (1 | patient) for keloids S014 S021 and S032 sequencing runs with quality 10 duplicates removed')
-# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-# dbDisconnect(db)
+rn = rownames(res)
+df = select(org.Mm.eg.db, as.character(rn), c('SYMBOL'), 'ENTREZID')
+head(df); head(res)
+df = df[!duplicated(df$ENTREZID),]
+rownames(df) = df$ENTREZID
+dfPlot = res
+dfPlot = cbind(dfPlot[rn,], df[rn,])
+dfPlot = na.omit(dfPlot)
 
-# remove the elements of list that are empty
-lGlm.sub = lGlm[!sapply(lGlm, is.null)]
+## write csv file
+write.csv(dfPlot, file='Results/DEAnalysis_SI.vs.SI_compM.xls')
 
-# extract a contrast at a time
-mContrasts = rbind('Control:2 vs Control:1' = c(-1, 1, 0, 0),
-                   'Keloid:1 vs Control:1' = c(-1, 0, 1, 0),
-                   #'Keloid:2 vs Control:1' = c(-1, 0, 0, 1),
-                   'Keloid:2 vs Keloid:1' = c(0, 0, -1, 1),
-                   'Keloid:2 vs Control:2' = c(0, -1, 0, 1))
+dfGenes = data.frame(P.Value=dfPlot$pvalue, logFC=dfPlot$log2FoldChange, adj.P.Val = dfPlot$padj, SYMBOL=dfPlot$SYMBOL)
+f_plotVolcano(dfGenes, 'SI vs SI_compM')
 
+oRes.
 
-## perform contrasts tests
-index = 1:length(lGlm.sub)
-
-lContrast1 = lapply(index, function(dat){
-  s = summary(glht(lGlm.sub[[dat]], t(mContrasts[1,])))
-  ret = c(s$test$coefficients[1], s$test$pvalues[1])
-  names(ret) = c('logfc', 'p.value')
-  return(ret)
-})
-
-dfContrast1 = data.frame(do.call(rbind, lContrast1))
-dfContrast1$p.adj = p.adjust(dfContrast1$p.value, method = 'BH')
-rownames(dfContrast1) = names(lGlm.sub)
-
-# second contrast
-lContrast2 = mclapply(index, function(dat){
-  s = summary(glht(lGlm.sub[[dat]], t(mContrasts[2,])))
-  ret = c(s$test$coefficients[1], s$test$pvalues[1])
-  names(ret) = c('logfc', 'p.value')
-  return(ret)
-})
-
-dfContrast2 = data.frame(do.call(rbind, lContrast2))
-dfContrast2$p.adj = p.adjust(dfContrast2$p.value, method = 'BH')
-rownames(dfContrast2) = names(lGlm.sub)
-
-# third contrast
-lContrast3 = mclapply(index, function(dat){
-  s = summary(glht(lGlm.sub[[dat]], t(mContrasts[3,])))
-  ret = c(s$test$coefficients[1], s$test$pvalues[1])
-  names(ret) = c('logfc', 'p.value')
-  return(ret)
-})
-
-dfContrast3 = data.frame(do.call(rbind, lContrast3))
-dfContrast3$p.adj = p.adjust(dfContrast3$p.value, method = 'BH')
-rownames(dfContrast3) = names(lGlm.sub)
-
-# fourth contrast
-lContrast4 = mclapply(index, function(dat){
-  s = summary(glht(lGlm.sub[[dat]], t(mContrasts[4,])))
-  ret = c(s$test$coefficients[1], s$test$pvalues[1])
-  names(ret) = c('logfc', 'p.value')
-  return(ret)
-})
-
-dfContrast4 = data.frame(do.call(rbind, lContrast4))
-dfContrast4$p.adj = p.adjust(dfContrast4$p.value, method = 'BH')
-rownames(dfContrast4) = names(lGlm.sub)
-
-
-## assign annotation to genes
-library(org.Hs.eg.db)
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast1)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast1$SYMBOL = df$SYMBOL
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast2)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast2$SYMBOL = df$SYMBOL
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast3)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast3$SYMBOL = df$SYMBOL
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast4)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast4$SYMBOL = df$SYMBOL
-
-## estimate dispersions and some quality plots
-par(mfrow=c(2,2))
-calculateDispersion = function(fm){
-  n = length(resid(fm))
-  sqrt(sum(c(as.numeric(resid(fm)), as.numeric(fm$U[[1]]))^2)/n)
-}
-
-iDispersion = sapply(lGlm.sub, calculateDispersion)
-
-plotDispersion = function(dis, dat, p.cut, title){
-  col = rep('grey', length.out=(nrow(dat)))
-  col[dat$p.adj < p.cut] = 'red'
-  plot(dis, dat$logfc, col=col, pch=20, main=title, xlab='Dispersion', ylab='logFC')
-}
-
-plotDispersion(iDispersion, dfContrast1, 0.01, 'Control:2 vs Control:1')
-plotDispersion(iDispersion, dfContrast2, 0.1, 'Keloid:1 vs Control:1')
-plotDispersion(iDispersion, dfContrast3, 0.01, 'Keloid:2 vs Keloid:1')
-plotDispersion(iDispersion, dfContrast4, 0.1, 'Keloid:2 vs Control:2')
-
-iMean = rowMeans(mDat[names(lGlm.sub),])
-
-plotMeanFC = function(m, dat, p.cut, title){
-  col = rep('grey', length.out=(nrow(dat)))
-  col[dat$p.adj < p.cut] = 'red'
-  #mh = cut(m, breaks=quantile(m, 0:50/50), include.lowest = T)
-  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC')
-}
-
-par(mfrow=c(2,2))
-plotMeanFC(log(iMean), dfContrast1, 0.01, 'Control:2 vs Control:1')
-plotMeanFC(log(iMean), dfContrast2, 0.1, 'Keloid:1 vs Control:1')
-plotMeanFC(log(iMean), dfContrast3, 0.01, 'Keloid:2 vs Keloid:1')
-plotMeanFC(log(iMean), dfContrast4, 0.1, 'Keloid:2 vs Control:2')
-
-
-### grouping of genes
-dfContrast1.sub = na.omit(dfContrast1[dfContrast1$p.adj < 0.01,])
-dfContrast2.sub = na.omit(dfContrast2[dfContrast2$p.adj < 0.1,])
-dfContrast3.sub = na.omit(dfContrast3[dfContrast3$p.adj < 0.01,])
-dfContrast4.sub = na.omit(dfContrast4[dfContrast4$p.adj < 0.1,])
-
-cvCommonGenes = unique(c(rownames(dfContrast1.sub), rownames(dfContrast2.sub), rownames(dfContrast3.sub), rownames(dfContrast4.sub)))
-mCommonGenes = matrix(NA, nrow=length(cvCommonGenes), ncol=4)
-mCommonGenes[,1] = cvCommonGenes %in% rownames(dfContrast1.sub)
-mCommonGenes[,2] = cvCommonGenes %in% rownames(dfContrast2.sub)
-mCommonGenes[,3] = cvCommonGenes %in% rownames(dfContrast3.sub)
-mCommonGenes[,4] = cvCommonGenes %in% rownames(dfContrast4.sub)
+## grouping of genes and making venn diagrams etc
+cvCommonGenes = unique(c(rownames(dfCLP_SI.vs.SI), rownames(dfCLP_SI.vs.SI_compM), rownames(dfSI.vs.SI_compM)))
+mCommonGenes = matrix(NA, nrow=length(cvCommonGenes), ncol=3)
+mCommonGenes[,1] = cvCommonGenes %in% rownames(dfCLP_SI.vs.SI)
+mCommonGenes[,2] = cvCommonGenes %in% rownames(dfCLP_SI.vs.SI_compM)
+mCommonGenes[,3] = cvCommonGenes %in% rownames(dfSI.vs.SI_compM)
 rownames(mCommonGenes) = cvCommonGenes
-colnames(mCommonGenes) = gsub(' ', '', rownames(mContrasts))
+colnames(mCommonGenes) = c('CLP_SI.vs.SI', 'CLP_SI.vs.SI_compM', 'SI.vs.SI_compM')
 
-## there appears to be a lot of genes coming up as significant
-## perform a sensitivity analysis to see if certain samples are causing this problem
-mCounts = mDat[cvCommonGenes,]
-dim(mCounts)
-str(mCounts)
-
-## functions to perform sensitivity analysis
-## posterior check
-nbPosterior = function(x, prior=c(1/2, 1/2)){
-  # calculate r i.e. alpha or size and p
-  est = c('size'= abs(mean(x)^2/(var(x)-mean(x))), 'mu' = mean(x))
-  est = c(est, est['size']/(est['size']+est['mu']))
-  names(est)[3] = 'prob'
-  # If the likelihood function for an observation x is negative binomial(r, p) and
-  # p is distributed a priori as Beta(a, b) then the posterior distribution for p is
-  # Beta(a + r, b + x). Note that this is the same as having observed r successes
-  # and x failures with a binomial(r + x, p) likelihood. All that matters from a
-  # Bayesian perspective is that r successes were observed and x failures.
-  post = rbeta(1000, est['size']+prior[1], est['mu']+prior[2])
-}
-
-mSensitivityCheck = function(x){
-  # create matrix to hold data
-  mRet = matrix(NA, nrow=1000, ncol=length(x)+1)
-  ## get posterior for full data
-  mRet[,1] = nbPosterior(x)
-  ## repeat with drop one observation
-  for (i in 1:length(x)){
-    mRet[,i+1] = nbPosterior(x[-i])
-  }
-  return(mRet)
-}
-
-mSensitivityCheckPvalues = function(x){
-  m = mSensitivityCheck(x)
-  #p.adjust(apply(m[,-1], 2, function(x) ks.test(m[,1], x)$p.value),method = 'bonf')
-  apply(m[,-1], 2, function(x) ks.test(m[,1], x)$p.value)
-}
-
-lSenPvalues = lapply(seq_along(1:nrow(mCounts)), function(x){
-  return(tryCatch(mSensitivityCheckPvalues(mCounts[x,]), error=function(e) NULL))
-})
-
-table(sapply(lSenPvalues, is.null))
-
-mSenPvalues = do.call(rbind, lSenPvalues)
-dim(mSenPvalues)
-colnames(mSenPvalues) = colnames(mCounts)
-rownames(mSenPvalues) = rownames(mCounts)
-str(mSenPvalues)
-
-## check the average to see if there is a pattern
-cm = colMeans(mSenPvalues)
-barplot(cm, las=2)
-boxplot(mSenPvalues, las=2, ylab='p values distribution', main='bayesian sensitivity analysis for samples')
-plot(cm, type='l', las=2, xlab='Samples', ylab='P values')
-
-## is there a correlation between size factor and this
-logit = function(p) log(p/(1-p))
-sf = oExp$LibrarySizeFactor
-plot(sf, logit(cm), main='Scatter plot for Sensitivity Analysis Average vs Library Size', xlab='Size Factor', ylab='Average P-Value for Sample')
-fm = lm(logit(cm) ~ sf)
-summary(fm)
-iDrop = which.max(hatvalues(fm))
-summary(update(fm, logit(cm[-iDrop]) ~ (sf[-iDrop])))
-plot((sf[-iDrop]), logit(cm[-iDrop]), main='Scatter plot for Sensitivity Analysis Average vs Library Size', xlab='Size Factor', ylab='Average P-Value for Sample')
-
-cor.test(sf[-iDrop], cm[-iDrop])
-
-##### repeat the analysis for the specific genes after sensitivity analysis
-mSenPvalues = t(apply(mSenPvalues, 1, p.adjust, 'bonf'))
-fRepeat = apply(mSenPvalues, 1, function(x) any(x < 0.05))
-table(fRepeat)
-cvRepeat = rownames(mCounts[fRepeat,])
-table(names(lGlm.sub) %in% cvRepeat)
-
-# how many samples have an outlier value per gene
-mRepeat = t(apply(mSenPvalues, 1, function(x) (x < 0.05)))
-i = rowSums(mRepeat)
-hist(i)
-table(i > 5)
-
-# fit glm to these genes
-ptm = proc.time()
-
-modelFunction2 = function(dat){
-  df = data.frame(resp=mDat[dat,], cond.time=oExp$fCondition.t, patient=oExp$fTitle, pvalues=mSenPvalues[dat,])
-  # drop the observations with low p-values
-  i = which(df$pvalues < 0.05)
-  df = df[-i,]
-  df = droplevels.data.frame(df)
-  return(tryCatch(glmmADMB::glmmadmb(resp ~ 0 + cond.time + (1 | patient), data=df, family = 'nbinom', link='log'), error=function(e) NULL))
-}
-
-lGlm.rep = lapply(cvRepeat, modelFunction2)
-
-names(lGlm.rep) = cvRepeat
-
-ptm.end = proc.time()
-
-## save this object in the database for future use
-## NOTE: don't run this segment of code again as object is already saved
-## commenting for safety
-# n = make.names(paste('list of glmer nb objects for keloids q10 rdup using glmmADMB after doing sensitivity analysis rds'))
-# n2 = paste0('~/Data/MetaData/', n)
-# save(lGlm.rep, file=n2)
-# 
-# library('RMySQL')
-# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-# dbListTables(db)
-# dbListFields(db, 'MetaFile')
-# df = data.frame(idData=2, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='list of glmer negative binomial objects for keloids q10 rdup using glmmADMB - resp ~ 0 + cond.time + (1 | patient) for keloids S014 S021 and S032 sequencing runs with quality 10 duplicates removed, repeated after doing sensitivity analysis')
-# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-# dbDisconnect(db)
-
-
-## remove any null elements
-table(sapply(lGlm.rep, is.null))
-f = sapply(lGlm.rep, is.null)
-lGlm.rep[f] = NULL
-
-i = match(names(lGlm.rep), names(lGlm.sub))
-head(names(lGlm.sub[i]),3)
-head(names(lGlm.rep), 3)
-lGlm.sub[i] = lGlm.rep
-
-##################################################################
-### repeat the contrasts 
-# extract a contrast at a time
-mContrasts = rbind('Control:2 vs Control:1' = c(-1, 1, 0, 0),
-                   'Keloid:1 vs Control:1' = c(-1, 0, 1, 0),
-                   #'Keloid:2 vs Control:1' = c(-1, 0, 0, 1),
-                   'Keloid:2 vs Keloid:1' = c(0, 0, -1, 1),
-                   'Keloid:2 vs Control:2' = c(0, -1, 0, 1))
-
-
-## perform contrasts tests
-index = 1:length(lGlm.sub)
-
-lContrast1 = lapply(index, function(dat){
-  tryCatch({
-    s = summary(glht(lGlm.sub[[dat]], t(mContrasts[1,])))
-    ret = c(s$test$coefficients[1], s$test$pvalues[1])
-    names(ret) = c('logfc', 'p.value')
-    return(ret)
-  }, error=function(e) {
-    ret = c('logfc'=NA, 'p.value'=NA)
-    return(ret)
-  })
-})
-
-dfContrast1 = data.frame(do.call(rbind, lContrast1))
-dfContrast1$p.adj = p.adjust(dfContrast1$p.value, method = 'BH')
-rownames(dfContrast1) = names(lGlm.sub)
-
-# second contrast
-lContrast2 = mclapply(index, function(dat){
-  tryCatch({
-    s = summary(glht(lGlm.sub[[dat]], t(mContrasts[2,])))
-    ret = c(s$test$coefficients[1], s$test$pvalues[1])
-    names(ret) = c('logfc', 'p.value')
-    return(ret)
-  }, error=function(e) {
-    ret = c('logfc'=NA, 'p.value'=NA)
-    return(ret)
-  })
-})
-
-dfContrast2 = data.frame(do.call(rbind, lContrast2))
-dfContrast2$p.adj = p.adjust(dfContrast2$p.value, method = 'BH')
-rownames(dfContrast2) = names(lGlm.sub)
-
-# third contrast
-lContrast3 = mclapply(index, function(dat){
-  tryCatch({
-    s = summary(glht(lGlm.sub[[dat]], t(mContrasts[3,])))
-    ret = c(s$test$coefficients[1], s$test$pvalues[1])
-    names(ret) = c('logfc', 'p.value')
-    return(ret)
-  }, error=function(e) {
-    ret = c('logfc'=NA, 'p.value'=NA)
-    return(ret)
-  })
-})
-
-dfContrast3 = data.frame(do.call(rbind, lContrast3))
-dfContrast3$p.adj = p.adjust(dfContrast3$p.value, method = 'BH')
-rownames(dfContrast3) = names(lGlm.sub)
-
-# fourth contrast
-lContrast4 = mclapply(index, function(dat){
-  tryCatch({
-    s = summary(glht(lGlm.sub[[dat]], t(mContrasts[4,])))
-    ret = c(s$test$coefficients[1], s$test$pvalues[1])
-    names(ret) = c('logfc', 'p.value')
-    return(ret)
-  }, error=function(e) {
-    ret = c('logfc'=NA, 'p.value'=NA)
-    return(ret)
-  })
-})
-
-dfContrast4 = data.frame(do.call(rbind, lContrast4))
-dfContrast4$p.adj = p.adjust(dfContrast4$p.value, method = 'BH')
-rownames(dfContrast4) = names(lGlm.sub)
-
-## assign annotation to genes
-library(org.Hs.eg.db)
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast1)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast1$SYMBOL = df$SYMBOL
-dfContrast1$GENENAME = df$GENENAME
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast2)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast2$SYMBOL = df$SYMBOL
-dfContrast2$GENENAME = df$GENENAME
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast3)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast3$SYMBOL = df$SYMBOL
-dfContrast3$GENENAME = df$GENENAME
-
-df = select(org.Hs.eg.db, as.character(rownames(dfContrast4)), c('SYMBOL', 'GENENAME'), 'ENTREZID')
-table(duplicated(df$ENTREZID))
-dfContrast4$SYMBOL = df$SYMBOL
-dfContrast4$GENENAME = df$GENENAME
-
-## estimate dispersions and some quality plots
-par(mfrow=c(2,2))
-calculateDispersion = function(fm){
-  n = length(resid(fm))
-  sqrt(sum(c(as.numeric(resid(fm)), as.numeric(fm$U[[1]]))^2)/n)
-}
-
-iDispersion = sapply(lGlm.sub, calculateDispersion)
-
-plotDispersion = function(dis, dat, p.cut, title){
-  col = rep('grey', length.out=(nrow(dat)))
-  col[dat$p.adj < p.cut] = 'red'
-  plot(dis, dat$logfc, col=col, pch=20, main=title, xlab='Dispersion', ylab='logFC')
-}
-
-plotDispersion(iDispersion, dfContrast1, 0.01, 'Control:2 vs Control:1')
-plotDispersion(iDispersion, dfContrast2, 0.1, 'Keloid:1 vs Control:1')
-plotDispersion(iDispersion, dfContrast3, 0.01, 'Keloid:2 vs Keloid:1')
-plotDispersion(iDispersion, dfContrast4, 0.1, 'Keloid:2 vs Control:2')
-
-iMean = rowMeans(mDat[names(lGlm.sub),])
-
-plotMeanFC = function(m, dat, p.cut, title){
-  col = rep('grey', length.out=(nrow(dat)))
-  col[dat$p.adj < p.cut] = 'red'
-  #mh = cut(m, breaks=quantile(m, 0:50/50), include.lowest = T)
-  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC')
-}
-
-par(mfrow=c(2,2))
-plotMeanFC(log(iMean), dfContrast1, 0.01, 'Control:2 vs Control:1')
-plotMeanFC(log(iMean), dfContrast2, 0.1, 'Keloid:1 vs Control:1')
-plotMeanFC(log(iMean), dfContrast3, 0.01, 'Keloid:2 vs Keloid:1')
-plotMeanFC(log(iMean), dfContrast4, 0.1, 'Keloid:2 vs Control:2')
-
-# add dispersion parameter to ecah gene
-dfContrast1$Dispersion = iDispersion[rownames(dfContrast1)]
-dfContrast2$Dispersion = iDispersion[rownames(dfContrast2)]
-dfContrast3$Dispersion = iDispersion[rownames(dfContrast3)]
-dfContrast4$Dispersion = iDispersion[rownames(dfContrast4)]
-
-# save the gene lists
-write.csv(na.omit(dfContrast1), file='Results/Control:2vsControl:1.xls')
-write.csv(na.omit(dfContrast2), file='Results/Keloid:1vsControl:1.xls')
-write.csv(na.omit(dfContrast3), file='Results/Keloid:2vsKeloid:1.xls')
-write.csv(na.omit(dfContrast4), file='Results/Keloid:2vsControl:2.xls')
-
-### grouping of genes
-dfContrast1.sub = na.omit(dfContrast1[dfContrast1$p.adj < 0.01 & dfContrast1$Dispersion > 0.4,])
-dfContrast2.sub = na.omit(dfContrast2[dfContrast2$p.adj < 0.1 & dfContrast2$Dispersion > 0.4,])
-dfContrast3.sub = na.omit(dfContrast3[dfContrast3$p.adj < 0.01 & dfContrast3$Dispersion > 0.4,])
-dfContrast4.sub = na.omit(dfContrast4[dfContrast4$p.adj < 0.1 & dfContrast4$Dispersion > 0.4,])
-
-cvCommonGenes = unique(c(rownames(dfContrast1.sub), rownames(dfContrast2.sub), rownames(dfContrast3.sub), rownames(dfContrast4.sub)))
-mCommonGenes = matrix(NA, nrow=length(cvCommonGenes), ncol=4)
-mCommonGenes[,1] = cvCommonGenes %in% rownames(dfContrast1.sub)
-mCommonGenes[,2] = cvCommonGenes %in% rownames(dfContrast2.sub)
-mCommonGenes[,3] = cvCommonGenes %in% rownames(dfContrast3.sub)
-mCommonGenes[,4] = cvCommonGenes %in% rownames(dfContrast4.sub)
-rownames(mCommonGenes) = cvCommonGenes
-colnames(mCommonGenes) = gsub(' ', '', rownames(mContrasts))
-
-
+head(mCommonGenes)
 ############
 
 #### analysis by grouping genes
@@ -664,116 +271,57 @@ print(temp2)
 library(VennDiagram)
 par(p.old)
 # create a list for overlaps
-lVenn = list(rownames(dfContrast1.sub), rownames(dfContrast2.sub), rownames(dfContrast3.sub), rownames(dfContrast4.sub))
-names(lVenn) = c('C2vsC1', 'K1vsC1', 'K2vsK1', 'K2vsC2')
+lVenn = list(rownames(dfCLP_SI.vs.SI), rownames(dfCLP_SI.vs.SI_compM), rownames(dfSI.vs.SI_compM))
+names(lVenn) = c('CLP_SI.vs.SI', 'CLP_SI.vs.SI_compM', 'SI.vs.SI_compM')
 # calculate overlaps
 #lVenn.overlap = calculate.overlap(lVenn)
 venn.diagram(lVenn, filename = 'Results/venn_all_contrasts.tif')
 venn.diagram(lVenn[c(1,3)], filename = 'Results/venn_time_contrasts.tif')
 
+### print and observe this table and select the groups you are interested in
+temp = mCommonGenes.grp
+temp = (temp[!duplicated(cp),])
+temp2 = cbind(temp, table(cp))
+rownames(temp2) = NULL
+print(temp2)
+write.csv(temp2, file='Results/venn.groups.xls')
+## groups of interest
+cpi = c(1, 2, 6)
+
 ## save the genes in the overlaps of interest
-# genes common between C2vsC1 and K2vsK1
-rn = apply(mCommonGenes, 1, function(x) all(x[c(1, 3)] == c(T, T)))
-rn = names(rn[rn])
+rn = which(mCommonGenes.grp[,'cp'] == cpi[1])
+rn = names(rn)
 length(rn)
 
-df.rn = select(org.Hs.eg.db, keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
+df.rn = select(org.Mm.eg.db , keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
 dim(df.rn)
 str(df.rn)
 # write csv to look at gene list
-write.csv(df.rn, file=paste('Temp/', 'common.between.c2vsc1.and.k2vsk1', '.xls', sep=''))
+write.csv(df.rn, file=paste('Results/', 'venn_overlaps_group_', cpi[1], '.xls', sep=''))
 
-# genes unique to C2vsC1 VS K2vsK1
-rn = apply(mCommonGenes, 1, function(x) all(x[c(1, 3)] == c(T, F)))
-rn = names(rn[rn])
-length(rn)
-
-df.rn = select(org.Hs.eg.db, keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
-dim(df.rn)
-str(df.rn)
-# write csv to look at gene list
-write.csv(df.rn, file=paste('Temp/', 'unique.to.c2vsc1.VS.k2vsk1', '.xls', sep=''))
-
-# genes unique to K2vsK1 VS C2vsC1
-rn = apply(mCommonGenes, 1, function(x) all(x[c(1, 3)] == c(F, T)))
-rn = names(rn[rn])
-length(rn)
-
-df.rn = select(org.Hs.eg.db, keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
-dim(df.rn)
-str(df.rn)
-# write csv to look at gene list
-write.csv(df.rn, file=paste('Temp/', 'unique.to.k2vsk1.VS.c2vsc1', '.xls', sep=''))
-
-# genes present in other 2 remaining contrasts
-df.rn = select(org.Hs.eg.db, keys = rownames(dfContrast2.sub), columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
-dim(df.rn)
-str(df.rn)
-write.csv(df.rn, file='Temp/K1vsC1.xls')
-
-df.rn = select(org.Hs.eg.db, keys = rownames(dfContrast4.sub), columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
-dim(df.rn)
-str(df.rn)
-write.csv(df.rn, file='Temp/K2vsC2.xls')
-
-## insert this gene list at innate db to see pathways overrepresented
-## import innate db result
-dfCommonAcrossTime = read.csv(file.choose(), header = T, sep='\t', stringsAsFactors = F)
-dfCommonAcrossTime = dfCommonAcrossTime[,-10]
-# sort the pathway table on adjusted p-values
-dfCommonAcrossTime = dfCommonAcrossTime[order(dfCommonAcrossTime$Pathway.p.value),]
-
-## make a barplot
-plot.bar = function(ivBar, title='', ...){
-  p.old = par(mar=c(8,4,2,2)+0.1)
-  l = barplot(ivBar, beside=T, xaxt='n', main=title, ...)
-  axis(side = 1, l[,1], labels=F)
-  text(l[,1], y=par()$usr[3]-0.1*(par()$usr[4]-par()$usr[3]),
-       labels=names(ivBar), srt=45, adj=1, xpd=TRUE, cex=0.6)
-  par(p.old)
+## repeat for other groups
+for (i in 2:length(cpi)){
+  rn = which(mCommonGenes.grp[,'cp'] == cpi[i])
+  rn = names(rn)
+  length(rn)
+  df.rn = select(org.Mm.eg.db, keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
+  dim(df.rn)
+  str(df.rn)
+  # write csv to look at gene list
+  write.csv(df.rn, file=paste('Results/', 'venn_overlaps_group_', cpi[i], '.csv', sep=''))
 }
-
-i = -1*log10(dfCommonAcrossTime$Pathway.p.value[1:7])
-names(i) = dfCommonAcrossTime$Pathway.Name[1:7]
-# make on of the names shorter
-names(i)[2] = 'Extracellular matrix degradation'
-pdf('Temp/injury_response.pdf')
-plot.bar(i, title='Common Response to Injury', ylab='-log10 PValue')
-dev.off(dev.cur())
-
-## recycling the code above 
-## import innate db result for unique to keloids across time
-dfCommonAcrossTime = read.csv(file.choose(), header = T, sep='\t', stringsAsFactors = F)
-dfCommonAcrossTime = dfCommonAcrossTime[,-10]
-# sort the pathway table on adjusted p-values
-dfCommonAcrossTime = dfCommonAcrossTime[order(dfCommonAcrossTime$Pathway.p.value),]
-
-## make a barplot
-plot.bar = function(ivBar, title='', ...){
-  p.old = par(mar=c(8,4,2,2)+0.1)
-  l = barplot(ivBar, beside=T, xaxt='n', main=title, ...)
-  axis(side = 1, l[,1], labels=F)
-  text(l[,1], y=par()$usr[3]-0.1*(par()$usr[4]-par()$usr[3]),
-       labels=names(ivBar), srt=45, adj=1, xpd=TRUE, cex=0.6)
-  par(p.old)
-}
-
-i = -1*log10(dfCommonAcrossTime$Pathway.p.value[1:7])
-names(i) = dfCommonAcrossTime$Pathway.Name[1:7]
-# make on of the names shorter
-names(i)[7] = 'Molecular Transport'
-pdf('Temp/unique_keloids_injury_response.pdf')
-plot.bar(i, title='Unique in Keloids Response to Injury', ylab='-log10 PValue')
-dev.off(dev.cur())
 
 
 ### make some heatmaps
 ## all overexpressed genes if interested in
-fSamples = oExp$fCondition.t
+fSamples = oExp.norm$fCondition
 i = 1:nrow(mCommonGenes)
 
 m1 = as.matrix(mCommonGenes[i,])
+mDat = counts(oDseq, normalized=T)
+dim(mDat)
 m1 = mDat[rownames(m1),]
+dim(m1)
 
 fGroups = fSamples
 colnames(m1) = fGroups
@@ -796,7 +344,7 @@ m1 = t(apply(m1, 1, function(x) f_ivStabilizeData(x, fGroups)))
 colnames(m1) = fGroups
 
 # scale across rows
-dfGenes = select(org.Hs.eg.db, cvCommonGenes, c('SYMBOL', 'GENENAME'), 'ENTREZID')
+dfGenes = select(org.Mm.eg.db, cvCommonGenes, c('SYMBOL', 'GENENAME'), 'ENTREZID')
 rownames(dfGenes) = dfGenes$ENTREZID
 rownames(m1) = dfGenes[rownames(m1), 'SYMBOL']
 mCounts = t(m1)
@@ -815,7 +363,7 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 ########### pathway analysis using CGraph library
 # uniprot annotation for data
 cvGenes = rownames(mCommonGenes)
-dfGenes = select(org.Hs.eg.db, keys = cvGenes, columns = c('ENTREZID', 'SYMBOL', 'GENENAME', 'UNIPROT'), keytype = 'ENTREZID')
+dfGenes = select(org.Mm.eg.db , keys = cvGenes, columns = c('ENTREZID', 'SYMBOL', 'GENENAME', 'UNIPROT'), keytype = 'ENTREZID')
 dfGenes = na.omit(dfGenes)
 
 # get reactome data
@@ -834,7 +382,8 @@ i = match(dfReactome.sub$V1, dfGenes$UNIPROT)
 dfReactome.sub$ENTREZID = dfGenes$ENTREZID[i]
 dfGraph = dfReactome.sub[,c('ENTREZID', 'V2')]
 dfGraph = na.omit(dfGraph)
-
+dim(dfGraph)
+head(dfGraph)
 # get expression data
 mCounts = mDat[unique(dfGenes$ENTREZID),]
 # ## optional adjusting the data for repeated measurements
@@ -844,7 +393,7 @@ mCounts = mDat[unique(dfGenes$ENTREZID),]
 # mCounts = t(mCounts)
 
 fGroups = fSamples
-names(fGroups) = oExp$fTitle
+names(fGroups) = oExp$title
 colnames(mCounts) = fGroups
 # reorder on grouping factor
 mCounts = mCounts[,order(fGroups)]
@@ -856,11 +405,6 @@ n = unique(dfGraph$ENTREZID)
 mCounts = mCounts[,n]
 print(paste('Total number of genes with Reactome terms', length(n)))
 levels(fGroups)
-
-# [1] "Total number of genes with Reactome terms 910"
-# > levels(fGroups)
-# [1] "Control:1" "Control:2" "Keloid:1"  "Keloid:2" 
-# > 
 
 # create a correlation matrix to decide cor cutoff
 mCor = cor(log(mCounts+0.5))
