@@ -58,10 +58,10 @@ lCounts = lapply(lFiles, function(bfl){
 
 
 ## save the summarized experiment object
-setwd(gcswd)
-n = make.names(paste('lCounts rd joana organoids mouse rds'))
-n2 = paste0('~/Data/MetaData/', n)
-save(lCounts, file=n2)
+# setwd(gcswd)
+# n = make.names(paste('lCounts rd joana organoids mouse rds'))
+# n2 = paste0('~/Data/MetaData/', n)
+# save(lCounts, file=n2)
 
 ## comment out after first time execution
 # library('RMySQL')
