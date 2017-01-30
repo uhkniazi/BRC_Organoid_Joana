@@ -97,7 +97,8 @@ mylogpost = function(theta, data){
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   # hyperparameters for the hierarchichal standard deviation parameter
-  betaSigma = theta['betaSigma']
+  betaSigma = exp(theta['betaSigma'])+1
+  ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
   x = data$pred
@@ -121,8 +122,8 @@ lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd
 # select some starting values
 temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
 names(temp) = NULL
-start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=log(mean(dfData$resp)), 
-          'betaSigma'=1)
+start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
+          'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
 
 fit = laplace(mylogpost, start, lData)
 
@@ -162,18 +163,34 @@ modelFunction = function(dat){
   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
   names(temp) = NULL
   # set starting values
-  start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=log(mean(dfData$resp)), 
-            'betaSigma'=1)
+  start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
+            'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
   # set parameters for optimizer
   lData = list(resp=dfData$resp, pred=dfData$pred)
   lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd(dfData$resp)))
-  return(tryCatch(laplace(mylogpost, start, lData), error=function(e) NULL))
+  laplace(mylogpost, start, lData)
 }
+
+# modelFunction2 = function(dat){
+#   dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
+#   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
+#   names(temp) = NULL
+#   # set starting values
+#   start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
+#             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
+#   # set parameters for optimizer
+#   lData = list(resp=dfData$resp, pred=dfData$pred)
+#   lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd(dfData$resp)))
+#   return(tryCatch(glm.nb(resp ~ pred, data=dfData), error=function(e) NULL))
+# }
 
 mDat = exprs(oExp.norm)
 iIndex = 1:5
 
-lGlm = lapply(iIndex, modelFunction)
+lGlm = lapply(iIndex, function(iIndexSub) {
+  tryCatch(modelFunction(iIndexSub), error=function(e) NULL)
+})
+##lGlm2 = lapply(iIndex, modelFunction2)
 
 
 # get the results/contrasts for each comparison
