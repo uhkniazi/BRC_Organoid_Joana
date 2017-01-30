@@ -45,51 +45,14 @@ table(fKeep)
 oExp.norm = oExp.norm[fKeep,]
 dim(oExp.norm)
 
-## get a few genes out for testing
+## prepare data to fit model
 fCondition = as.character(oExp.norm$fCondition)
 fCondition[fCondition != 'CLP_SI'] = 'Media'
 fCondition = factor(fCondition, levels = c('Media', 'CLP_SI'))
 mDat = exprs(oExp.norm)
 
-dfData = data.frame(resp=as.integer(mDat['12945',]), pred=fCondition)
-dfData
-library(MASS)
-fit.glm = glm.nb(resp ~ pred, data=dfData)
-summary(fit.glm)
 
-## try with stan first
-# set data to send to stan
-lData = list(y=dfData$resp, Ntotal=length(dfData$resp), Ncols=nlevels(dfData$pred))
-lGamma = gammaShRaFromModeSD(mode = sd(lData$y)/2, sd = 2*sd(lData$y))
-lData$betaShape = lGamma$shape
-lData$betaRate = lGamma$rate
-lData$modmatrix = model.matrix(resp ~ pred, data=dfData)
-
-## create the stan DSO object
-library(rstan)
-
-stanDso = stan_model(file = 'nb_glm.stan')
-fit.stan = sampling(stanDso, data = lData, pars = c('beta', 'iSize', 'betaSigma'),
-                    iter = 10000, chains = 4)
-
-print(fit.stan)
-
-## looks fine, get the summary diagnostics
-getStanSD = function(obj){
-  return(apply(extract(obj)$beta, 2, sd))
-}
-
-getStanMean = function(obj){
-  return(apply(extract(obj)$beta, 2, mean))
-}
-
-getStanPValue = function(obj){
-  pnorm(-abs(getStanMean(obj)/getStanSD(obj)))*2
-}
-
-getStanPValue(fit.stan)
-
-#### try using laplace 
+#### define function to optimize
 library(LearnBayes)
 ## define log posterior
 mylogpost = function(theta, data){
@@ -117,32 +80,11 @@ mylogpost = function(theta, data){
   return(ret)
 }
 
-lData = list(resp=dfData$resp, pred=dfData$pred)
-lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd(dfData$resp)))
-# select some starting values
-temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
-names(temp) = NULL
-start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
-          'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
-
-fit = laplace(mylogpost, start, lData)
-
-se = sqrt(diag(fit$var))
-m = fit$mode
-
-q.975 = m+1.96*se
-q.025 = m-1.96*se
-
-q.975
-q.025
-
 getOptimizedPValue = function(obj){
   se = sqrt(diag(obj$var))[c('beta0', 'beta1')]
   m = obj$mode[c('beta0', 'beta1')]
   pnorm(-abs(m/se))*2
 }
-
-getOptimizedPValue(fit)
 
 getOptimizedSummary = function(obj){
   se = sqrt(diag(obj$var))['beta1']
@@ -153,16 +95,13 @@ getOptimizedSummary = function(obj){
   return(ret)
 }
 
-getOptimizedSummary(fit)
-# compare with glm fit
-summary(fit.glm)
-
-############################### try fitting the model on multiple genes
+############################### fit the model on multiple genes
 modelFunction = function(dat){
+  ## prepare data before fitting
   dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
   names(temp) = NULL
-  # set starting values
+  # set starting values for optimizer
   start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
   # set parameters for optimizer
@@ -171,26 +110,12 @@ modelFunction = function(dat){
   laplace(mylogpost, start, lData)
 }
 
-# modelFunction2 = function(dat){
-#   dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
-#   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
-#   names(temp) = NULL
-#   # set starting values
-#   start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
-#             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
-#   # set parameters for optimizer
-#   lData = list(resp=dfData$resp, pred=dfData$pred)
-#   lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd(dfData$resp)))
-#   return(tryCatch(glm.nb(resp ~ pred, data=dfData), error=function(e) NULL))
-# }
-
 mDat = exprs(oExp.norm)
 iIndex = 1:5
 
 lGlm = lapply(iIndex, function(iIndexSub) {
   tryCatch(modelFunction(iIndexSub), error=function(e) NULL)
 })
-##lGlm2 = lapply(iIndex, modelFunction2)
 
 
 # get the results/contrasts for each comparison
