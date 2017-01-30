@@ -54,6 +54,7 @@ mDat = exprs(oExp.norm)
 
 #### define function to optimize
 library(LearnBayes)
+library(MASS)
 ## define log posterior
 mylogpost = function(theta, data){
   size = theta['size']
@@ -101,97 +102,58 @@ modelFunction = function(dat){
   dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
   names(temp) = NULL
-  # set starting values for optimizer
-  start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
-            'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
+  # set starting values for optimizer and 
   # set parameters for optimizer
   lData = list(resp=dfData$resp, pred=dfData$pred)
   lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd(dfData$resp)))
+  start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
+            'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
+  
   laplace(mylogpost, start, lData)
 }
 
 mDat = exprs(oExp.norm)
-iIndex = 1:5
+iIndex = 1:nrow(mDat)
 
 lGlm = lapply(iIndex, function(iIndexSub) {
   tryCatch(modelFunction(iIndexSub), error=function(e) NULL)
 })
 
+names(lGlm) = rownames(mDat)
 
-# get the results/contrasts for each comparison
-levels(oExp.norm$fCondition)
-oRes.SI.vs.SI_compM = results(oDseq, contrast = c('condition', 'SI', 'SI_compM'))
-oRes.CLP_SI.vs.SI_compM = results(oDseq, contrast = c('condition', 'CLP_SI', 'SI_compM'))
-oRes.CLP_SI.vs.SI = results(oDseq, contrast = c('condition', 'CLP_SI', 'SI'))
+table(sapply(lGlm, is.null))
+# remove the elements of list that are empty
+lGlm.sub = lGlm[!sapply(lGlm, is.null)]
+length(lGlm.sub)
 
-plotMA(oRes.SI.vs.SI_compM, main='SI vs SI_compM')
-plotMA(oRes.CLP_SI.vs.SI_compM, main='CLP_SI vs SI_compM')
-plotMA(oRes.CLP_SI.vs.SI, main='CLP_SI vs SI')
+table(sapply(lGlm.sub, function(x) x$converge))
 
-# plot histograms of adjusted p values
-hist(oRes.CLP_SI.vs.SI$log2FoldChange)
-hist(oRes.CLP_SI.vs.SI$padj)
+mSummary = t(sapply(lGlm.sub, getOptimizedSummary))
+table(fCondition)
 
-hist(oRes.CLP_SI.vs.SI_compM$log2FoldChange)
-hist(oRes.CLP_SI.vs.SI_compM$padj)
-
-hist(oRes.SI.vs.SI_compM$log2FoldChange)
-hist(oRes.SI.vs.SI_compM$padj)
-
-table(oRes.CLP_SI.vs.SI$padj < 0.1)
-table(oRes.CLP_SI.vs.SI_compM$padj < 0.1)
-table(oRes.SI.vs.SI_compM$padj < 0.1)
-
-# perform independent filtering 
-iCutoff = 2
-fKeep = rowMeans(counts(oDseq, normalized=T)) > iCutoff
-table(fKeep)
-
-dim(oRes.CLP_SI.vs.SI)
-oRes.CLP_SI.vs.SI = oRes.CLP_SI.vs.SI[fKeep,]
-dim(oRes.CLP_SI.vs.SI)
-
-oRes.CLP_SI.vs.SI_compM = oRes.CLP_SI.vs.SI_compM[fKeep,]
-dim(oRes.CLP_SI.vs.SI_compM)
-
-oRes.SI.vs.SI_compM = oRes.SI.vs.SI_compM[fKeep,]
-
-oRes.CLP_SI.vs.SI$padj = p.adjust(oRes.CLP_SI.vs.SI$pvalue, method = 'BH')
-oRes.CLP_SI.vs.SI_compM$padj = p.adjust(oRes.CLP_SI.vs.SI_compM$pvalue, method = 'BH')
-oRes.SI.vs.SI_compM$padj = p.adjust(oRes.SI.vs.SI_compM$pvalue, method = 'BH')
-
-table(oRes.CLP_SI.vs.SI$padj < 0.1)
-table(oRes.CLP_SI.vs.SI_compM$padj < 0.1)
-table(oRes.SI.vs.SI_compM$padj < 0.1)
-
-# get results with significant p-values
-dfCLP_SI.vs.SI = as.data.frame(oRes.CLP_SI.vs.SI[which(oRes.CLP_SI.vs.SI$padj < 0.1),])
-dfCLP_SI.vs.SI_compM = as.data.frame(oRes.CLP_SI.vs.SI_compM[which(oRes.CLP_SI.vs.SI_compM$padj < 0.1),])
-dfSI.vs.SI_compM = as.data.frame(oRes.SI.vs.SI_compM[which(oRes.SI.vs.SI_compM$padj < 0.1),])
-
-dim(dfCLP_SI.vs.SI)
-dim(dfCLP_SI.vs.SI_compM)
-dim(dfSI.vs.SI_compM)
+dfResults = data.frame('ENTREZID' = rownames(mSummary), logFC=mSummary[,'Coef'], SE=mSummary[,'SE'], P.Value=mSummary[,'P-Value'])
+rownames(dfResults) = dfResults$ENTREZID
+dfResults$adj.P.Val = p.adjust(dfResults$P.Value, 'BH')
 
 ### create some volcano plots with annotations
-## choose the comparison for plotting
 library(org.Mm.eg.db)
 # add annotation to the data set after selecting comparison
-res = as.data.frame(oRes.CLP_SI.vs.SI)
-
-rn = rownames(res)
+rn = rownames(dfResults)
 df = select(org.Mm.eg.db, as.character(rn), c('SYMBOL'), 'ENTREZID')
-head(df); head(res)
+head(df); head(dfResults)
 df = df[!duplicated(df$ENTREZID),]
+dim(df); dim(dfResults)
 rownames(df) = df$ENTREZID
-dfPlot = res
-dfPlot = cbind(dfPlot[rn,], df[rn,])
-dfPlot = na.omit(dfPlot)
+rn = rownames(dfResults)
+dfResults = cbind(dfResults[rn,], df[rn,'SYMBOL'])
+colnames(dfResults)[6] = 'SYMBOL'
+dfPlot = na.omit(dfResults)
+dim(dfPlot); dim(dfResults)
 
 ## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.SI.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media.xls')
 
-dfGenes = data.frame(P.Value=dfPlot$pvalue, logFC=dfPlot$log2FoldChange, adj.P.Val = dfPlot$padj, SYMBOL=dfPlot$SYMBOL)
+dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
 f_plotVolcano = function(dfGenes, main, p.adj.cut = 0.1, fc.lim = c(-3, 3)){
   p.val = -1 * log10(dfGenes$P.Value)
@@ -205,7 +167,7 @@ f_plotVolcano = function(dfGenes, main, p.adj.cut = 0.1, fc.lim = c(-3, 3)){
   abline(v = 0, col='grey', lty=2)
   abline(h = y.cut, col='red', lty=2)
   # second cutoff for adjusted p-values, ignore this set probs=0
-  y.cut = quantile(p.val[c], probs=0)
+  y.cut = quantile(p.val[c], probs=0.95)
   abline(h = y.cut, col='red')
   # identify these genes
   g = which(p.val > y.cut)
@@ -213,124 +175,17 @@ f_plotVolcano = function(dfGenes, main, p.adj.cut = 0.1, fc.lim = c(-3, 3)){
   text(dfGenes$logFC[g], y = p.val[g], labels = lab, pos=2, cex=0.6)
 }
 
-f_plotVolcano(dfGenes, 'CLP_SI vs SI')
+f_plotVolcano(dfGenes, 'CLP_SI vs Media')
 
-### repeat for second dataset
-res = as.data.frame(oRes.CLP_SI.vs.SI_compM)
+dfResults = na.omit(dfResults)
 
-rn = rownames(res)
-df = select(org.Mm.eg.db, as.character(rn), c('SYMBOL'), 'ENTREZID')
-head(df); head(res)
-df = df[!duplicated(df$ENTREZID),]
-rownames(df) = df$ENTREZID
-dfPlot = res
-dfPlot = cbind(dfPlot[rn,], df[rn,])
-dfPlot = na.omit(dfPlot)
+hist(dfResults$logFC)
+hist(dfResults$P.Value)
+hist(dfResults$adj.P.Val)
 
-## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.SI_compM.xls')
+table(dfResults$adj.P.Val < 0.1)
 
-dfGenes = data.frame(P.Value=dfPlot$pvalue, logFC=dfPlot$log2FoldChange, adj.P.Val = dfPlot$padj, SYMBOL=dfPlot$SYMBOL)
-f_plotVolcano(dfGenes, 'CLP_SI vs SI_compM')
 
-### repeat for third contrast
-res = as.data.frame(oRes.SI.vs.SI_compM)
-
-rn = rownames(res)
-df = select(org.Mm.eg.db, as.character(rn), c('SYMBOL'), 'ENTREZID')
-head(df); head(res)
-df = df[!duplicated(df$ENTREZID),]
-rownames(df) = df$ENTREZID
-dfPlot = res
-dfPlot = cbind(dfPlot[rn,], df[rn,])
-dfPlot = na.omit(dfPlot)
-
-## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_SI.vs.SI_compM.xls')
-
-dfGenes = data.frame(P.Value=dfPlot$pvalue, logFC=dfPlot$log2FoldChange, adj.P.Val = dfPlot$padj, SYMBOL=dfPlot$SYMBOL)
-f_plotVolcano(dfGenes, 'SI vs SI_compM')
-
-oRes.
-
-## grouping of genes and making venn diagrams etc
-cvCommonGenes = unique(c(rownames(dfCLP_SI.vs.SI), rownames(dfCLP_SI.vs.SI_compM), rownames(dfSI.vs.SI_compM)))
-mCommonGenes = matrix(NA, nrow=length(cvCommonGenes), ncol=3)
-mCommonGenes[,1] = cvCommonGenes %in% rownames(dfCLP_SI.vs.SI)
-mCommonGenes[,2] = cvCommonGenes %in% rownames(dfCLP_SI.vs.SI_compM)
-mCommonGenes[,3] = cvCommonGenes %in% rownames(dfSI.vs.SI_compM)
-rownames(mCommonGenes) = cvCommonGenes
-colnames(mCommonGenes) = c('CLP_SI.vs.SI', 'CLP_SI.vs.SI_compM', 'SI.vs.SI_compM')
-
-head(mCommonGenes)
-############
-
-#### analysis by grouping genes
-# create groups in the data based on 4^2-1 combinations
-mCommonGenes.grp = mCommonGenes
-set.seed(123)
-dm = dist(mCommonGenes.grp, method='binary')
-hc = hclust(dm)
-plot(hc)
-# cut the tree at the bottom to create groups
-cp = cutree(hc, h = 0.2)
-# sanity checks
-table(cp)
-length(cp)
-length(unique(cp))
-
-mCommonGenes.grp = cbind(mCommonGenes.grp, cp)
-
-### print and observe this table and select the groups you are interested in
-temp = mCommonGenes.grp
-temp = (temp[!duplicated(cp),])
-temp2 = cbind(temp, table(cp))
-rownames(temp2) = NULL
-print(temp2)
-
-## make venn diagrams of comparisons
-library(VennDiagram)
-par(p.old)
-# create a list for overlaps
-lVenn = list(rownames(dfCLP_SI.vs.SI), rownames(dfCLP_SI.vs.SI_compM), rownames(dfSI.vs.SI_compM))
-names(lVenn) = c('CLP_SI.vs.SI', 'CLP_SI.vs.SI_compM', 'SI.vs.SI_compM')
-# calculate overlaps
-#lVenn.overlap = calculate.overlap(lVenn)
-venn.diagram(lVenn, filename = 'Results/venn_all_contrasts.tif')
-venn.diagram(lVenn[c(1,3)], filename = 'Results/venn_time_contrasts.tif')
-
-### print and observe this table and select the groups you are interested in
-temp = mCommonGenes.grp
-temp = (temp[!duplicated(cp),])
-temp2 = cbind(temp, table(cp))
-rownames(temp2) = NULL
-print(temp2)
-write.csv(temp2, file='Results/venn.groups.xls')
-## groups of interest
-cpi = c(1, 2, 6)
-
-## save the genes in the overlaps of interest
-rn = which(mCommonGenes.grp[,'cp'] == cpi[1])
-rn = names(rn)
-length(rn)
-
-df.rn = select(org.Mm.eg.db , keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
-dim(df.rn)
-str(df.rn)
-# write csv to look at gene list
-write.csv(df.rn, file=paste('Results/', 'venn_overlaps_group_', cpi[1], '.xls', sep=''))
-
-## repeat for other groups
-for (i in 2:length(cpi)){
-  rn = which(mCommonGenes.grp[,'cp'] == cpi[i])
-  rn = names(rn)
-  length(rn)
-  df.rn = select(org.Mm.eg.db, keys = rn, columns = c('SYMBOL', 'GENENAME'), keytype = 'ENTREZID')
-  dim(df.rn)
-  str(df.rn)
-  # write csv to look at gene list
-  write.csv(df.rn, file=paste('Results/', 'venn_overlaps_group_', cpi[i], '.csv', sep=''))
-}
 
 
 ### make some heatmaps
