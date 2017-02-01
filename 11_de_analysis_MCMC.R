@@ -61,7 +61,7 @@ mylogpost = function(theta, data){
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   # hyperparameters for the hierarchichal standard deviation parameter
-  betaSigma = exp(theta['betaSigma'])+1
+  betaSigma = exp(theta['betaSigma']) # maybe add a one to prevent zero variance
   ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
@@ -105,7 +105,7 @@ modelFunction = function(dat){
   # set starting values for optimizer and 
   # set parameters for optimizer
   lData = list(resp=dfData$resp, pred=dfData$pred)
-  lData$betaParam = unlist(gammaShRaFromModeSD(mode = sd(dfData$resp)/2, sd = 2*sd(dfData$resp)))
+  lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
   start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
   
@@ -151,7 +151,7 @@ dfPlot = na.omit(dfResults)
 dim(dfPlot); dim(dfResults)
 
 ## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_2.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
