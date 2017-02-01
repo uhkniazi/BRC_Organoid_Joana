@@ -12,8 +12,8 @@ library('RMySQL')
 ## gamma shape function
 ## this function is from the book: Bayesian data analysis
 gammaShRaFromModeSD = function( mode , sd ) {
-  if ( mode <=0 ) stop("mode must be > 0")
-  if ( sd <=0 ) stop("sd must be > 0")
+  # function changed a little to return jeffery non-informative prior
+  if ( mode <=0 || sd <=0 ) return( list( shape=0.5 , rate=0.0001 ) ) 
   rate = ( mode + sqrt( mode^2 + 4 * sd^2 ) ) / ( 2 * sd^2 )
   shape = 1 + mode * rate
   return( list( shape=shape , rate=rate ) )
@@ -61,7 +61,7 @@ mylogpost = function(theta, data){
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   # hyperparameters for the hierarchichal standard deviation parameter
-  betaSigma = exp(theta['betaSigma']) # maybe add a one to prevent zero variance
+  betaSigma = exp(theta['betaSigma']) + 1 # maybe add a one to prevent zero variance
   ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
@@ -133,6 +133,49 @@ table(fCondition)
 
 dfResults = data.frame('ENTREZID' = rownames(mSummary), logFC=mSummary[,'Coef'], SE=mSummary[,'SE'], P.Value=mSummary[,'P-Value'])
 rownames(dfResults) = dfResults$ENTREZID
+
+# ## the genes on which the model did not fit, use MCMC to fit the model
+# ## prepare stan dso object
+# library(rstan)
+# stanDso = rstan::stan_model(file='nb_glm.stan')
+# 
+# 
+# ## functions to extract information out of stan object
+# getStanSummary = function(obj){
+#   return(apply(extract(obj)$beta, 2, sd))
+# }
+# getStanSD = function(obj){
+#   return(apply(extract(obj)$beta, 2, sd))
+# }
+# getStanMean = function(obj){
+#   return(apply(extract(obj)$beta, 2, mean))
+# }
+# getStanPValue = function(obj){
+#   pnorm(-abs(getStanMean(obj)/getStanSD(obj)))*2
+# }
+# 
+# ## get the names of genes on which optimiser did not converge
+# table(sapply(lGlm, is.null))
+# f = sapply(lGlm, is.null)
+# cvFailed = names(lGlm[f])
+# 
+# ## write a model function
+# modelFunction2 = function(dat){
+#   ## prepare data before fitting
+#   dfData = data.frame(resp=as.integer(mDat[dat,]+1), pred=fCondition)
+#   lData = list(resp=dfData$resp, pred=dfData$pred)
+#   lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp)/2), sd = log(2*sd(dfData$resp))))
+#   lStanData = list(Ntotal=nrow(dfData), Ncols=2, modmatrix= model.matrix(resp ~ pred, data=dfData), y=dfData$resp,
+#                    betaShape=lData$betaParam['shape'], betaRate=lData$betaParam['rate'])
+#   fit.stan = sampling(stanDso, data = lStanData, pars = c('beta'),
+#                       iter = 5000, chains = 4)
+#   return(c('Coef'=getStanMean(fit.stan)[2], 'SE'=getStanSD(fit.stan)[2], 'P-Value'=getStanPValue(fit.stan)[2]))
+# }
+# 
+# lGlm.stan = lapply(cvFailed, function(cvIndexSub) {
+#   tryCatch(modelFunction2(cvIndexSub), error=function(e) NULL)
+# })
+
 dfResults$adj.P.Val = p.adjust(dfResults$P.Value, 'BH')
 
 ### create some volcano plots with annotations
@@ -151,7 +194,7 @@ dfPlot = na.omit(dfResults)
 dim(dfPlot); dim(dfResults)
 
 ## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_2.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_3.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
@@ -179,11 +222,25 @@ f_plotVolcano(dfGenes, 'CLP_SI vs Media')
 
 dfResults = na.omit(dfResults)
 
+par(mfrow=c(2,2))
 hist(dfResults$logFC)
 hist(dfResults$P.Value)
 hist(dfResults$adj.P.Val)
 
 table(dfResults$adj.P.Val < 0.1)
+
+plotMeanFC = function(m, dat, p.cut, title){
+  col = rep('grey', length.out=(nrow(dat)))
+  col[dat$p.adj < p.cut] = 'red'
+  #mh = cut(m, breaks=quantile(m, 0:50/50), include.lowest = T)
+  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC', ylim=c(-1.5, 1.5))
+}
+
+dfGenes = data.frame(p.adj=dfResults$adj.P.Val, logfc=dfResults$logFC)
+iMean = rowMeans(mDat[dfResults$ENTREZID,])
+
+plotMeanFC(log(iMean), dfGenes, 0.1, 'MA Plot')
+
 
 ### make some heatmaps
 fSamples = fCondition
@@ -226,4 +283,18 @@ mCounts[mCounts > 3] = 3
 aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv = TRUE, 
          annColors=NA, Colv=NA)
 
-
+## save this object in the database for future use
+## NOTE: don't run this segment of code again as object is already saved
+## commenting for safety
+# n = make.names(paste('list of negative binomial glm objects for organoids project rds'))
+# n2 = paste0('~/Data/MetaData/', n)
+# save(lGlm, file=n2)
+# 
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='list of negative binomial glm objects for organoids project fit using laplace function')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)

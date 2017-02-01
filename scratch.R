@@ -32,3 +32,7 @@ fit.stan = sampling(stanDso.old, data = lStanData, pars = c('beta', 'iSize', 'be
 
 print(fit.stan)
 
+f = sapply(lGlm, is.null)
+table(f)
+
+cvNames = names(lGlm)[f]
