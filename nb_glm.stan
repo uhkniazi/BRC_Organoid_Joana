@@ -13,7 +13,7 @@ data {
   parameters {
     # parameters to track
     vector[Ncols] beta; // coefficients of the model
-    real<lower=1> iSize; // size parameter for the nb distribution 
+    real<lower=1, upper=1000> iSize; // size parameter for the nb distribution 
     real<lower=0.1> betaSigma; // standard deviation parameter for the joint prior for betas
   }
   transformed parameters {
