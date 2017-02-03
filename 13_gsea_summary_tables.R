@@ -6,7 +6,7 @@
 ## set variables and source libraries
 source('header.R')
 
-lFiles = list.files('Results/', pattern='*mSigDb_c5.xls', full.names = T, ignore.case = T)
+lFiles = list.files('Results/', pattern='*mSigDb_all.xls', full.names = T, ignore.case = T)
 
 # load the files
 ldfData = lapply(lFiles, function(x) as.data.frame(read.csv(x, row.names=1)))
@@ -84,17 +84,16 @@ print(temp2)
 ## map these names to the cp
 groups = cp
 sig.pvals = rowSums(mMerged.c2.bin)
-dfMerged.c2 = data.frame(round(mMerged.c2, 3), sig.pvals, groups, DB='C5-Mouse')
+dfMerged.c2 = data.frame(round(mMerged.c2, 3), sig.pvals, groups, DB='mSigDB-Mouse')
 str(dfMerged.c2)
 head(dfMerged.c2)
 tail(dfMerged.c2)
 
 #write.csv(dfMerged.c2, file='Results/gsea_msigdb_c2_merged.xls')
-write.csv(dfMerged.c2, file='Results/gsea_msigdb_c5_merged.xls')
-
-# ## merge together into one dataframe
-# table(dfMerged.c2$groups)
-# dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 3,]
+#write.csv(dfMerged.c2, file='Results/gsea_msigdb_all_merged.xls')
+## keep only the ones with significant p-values
+table(dfMerged.c2$groups)
+dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 2,]
 # 
 # table(dfMerged.c5$groups)
 # dfMerged.c5.sub = dfMerged.c5[dfMerged.c5$groups != 2,]
@@ -102,7 +101,7 @@ write.csv(dfMerged.c2, file='Results/gsea_msigdb_c5_merged.xls')
 # dfMerged = rbind(dfMerged.c2.sub, dfMerged.c5.sub)
 # dfMerged = droplevels.data.frame(dfMerged)
 # 
-# write.csv(dfMerged, file='Results/gsea_msigdb_significant_c2_c5_merged.csv')
+write.csv(dfMerged.c2.sub, file='Results/gsea_msigdb_significant_all_merged.csv')
 
 ### heatmaps
 dfMerged = dfMerged.c2

@@ -45,8 +45,8 @@ str(dfLess)
 i = which(dfLess$p.val < 0.01)
 rownames(dfLess[i,])
 
-write.csv(dfGreater[,c('p.val', 'q.val', 'set.size')], file='Results/upregulated_pathways_msigdb_c5.xls')
-write.csv(dfLess[,c('p.val', 'q.val', 'set.size')], file='Results/downregulated_pathways_msigdb_c5.xls')
+write.csv(dfGreater[,c('p.val', 'q.val', 'set.size')], file='Results/upregulated_pathways_msigdb_all.xls')
+write.csv(dfLess[,c('p.val', 'q.val', 'set.size')], file='Results/downregulated_pathways_msigdb_all.xls')
 
 
 
