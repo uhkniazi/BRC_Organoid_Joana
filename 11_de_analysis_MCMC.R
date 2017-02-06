@@ -246,11 +246,11 @@ plotMeanFC(log(iMean), dfGenes, 0.1, 'MA Plot')
 fSamples = fCondition
 rn = rownames(dfResults[dfResults$adj.P.Val < 0.1 , ])
 dim(mDat)
-m1 = mDat[rn,]
+m1 = log(mDat[rn,]+1)
 dim(m1)
 
 fGroups = fSamples
-colnames(m1) = fGroups
+colnames(m1) = oExp.norm$phenotype
 m1 = m1[,order(fGroups)]
 fGroups = fGroups[order(fGroups)]
 
@@ -281,7 +281,7 @@ mCounts[mCounts > 3] = 3
 
 # draw the heatmap  color='-RdBu:50'
 aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv = TRUE, 
-         annColors=NA, Colv=NA)
+         annColors=NA, Colv=TRUE)
 
 ## save this object in the database for future use
 ## NOTE: don't run this segment of code again as object is already saved
@@ -298,3 +298,50 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 #                 comment='list of negative binomial glm objects for organoids project fit using laplace function')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 # dbDisconnect(db)
+
+head(dfResults)
+dfResults = dfResults[order(dfResults$adj.P.Val, decreasing = F),]
+
+dfResults.plot = dfResults[dfResults$logFC > 0,]
+dfResults.plot = dfResults.plot[1:5,]
+
+fSamples = fCondition
+rn = rownames(dfResults.plot)
+dim(mDat)
+m1 = log(mDat[rn,]+3)
+fGroups = fSamples
+colnames(m1) = oExp.norm$phenotype
+m1 = m1[,order(fGroups)]
+fGroups = fGroups[order(fGroups)]
+head(m1)
+dim(m1)
+
+matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Positive Fold Change', xaxt='n',
+        ylim=c(-2, 2))
+axis(side = 1, labels = fGroups, at = 1:9)
+abline(h = 0, lty=2, lwd=0.8)
+gn = select(org.Mm.eg.db, keys = rownames(m1), keytype = 'ENTREZID', columns = 'SYMBOL')
+legend('topleft', legend = gn$SYMBOL, fill=1:5)
+
+### negative fold change
+dfResults.plot = dfResults[dfResults$logFC < 0,]
+dfResults.plot = dfResults.plot[1:5,]
+
+fSamples = fCondition
+rn = rownames(dfResults.plot)
+dim(mDat)
+m1 = log(mDat[rn,]+3)
+fGroups = fSamples
+colnames(m1) = oExp.norm$phenotype
+m1 = m1[,order(fGroups)]
+fGroups = fGroups[order(fGroups)]
+head(m1)
+dim(m1)
+
+matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Negative Fold Change', xaxt='n',
+        ylim=c(-2, 2))
+axis(side = 1, labels = fGroups, at = 1:9)
+abline(h = 0, lty=2, lwd=0.8)
+gn = select(org.Mm.eg.db, keys = rownames(m1), keytype = 'ENTREZID', columns = 'SYMBOL')
+legend('topleft', legend = gn$SYMBOL, fill=1:5)
+
