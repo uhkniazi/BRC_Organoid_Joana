@@ -47,10 +47,18 @@ dim(oExp.norm)
 
 ## prepare data to fit model
 fCondition = as.character(oExp.norm$fCondition)
+table(fCondition)
+# drop the si
+f = which(fCondition == 'SI')
+f
+oExp.norm = oExp.norm[,-f]
+dim(oExp.norm)
+# keep the others
+fCondition = as.character(oExp.norm$fCondition)
+table(fCondition)
 fCondition[fCondition != 'CLP_SI'] = 'Media'
 fCondition = factor(fCondition, levels = c('Media', 'CLP_SI'))
 mDat = exprs(oExp.norm)
-
 
 #### define function to optimize
 library(LearnBayes)
@@ -108,7 +116,12 @@ modelFunction = function(dat){
   lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
   start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
-  
+  op = optim(start, mylogpost, control = list(fnscale = -1, maxit=10000), data=lData)
+  # see results of optimiser
+  if (op$convergence) warning('Optimizer convergence failed')
+  ## you can see the starting values 
+  start2 = op$par
+  names(start2) = names(start)
   laplace(mylogpost, start, lData)
 }
 
@@ -194,7 +207,8 @@ dfPlot = na.omit(dfResults)
 dim(dfPlot); dim(dfResults)
 
 ## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_3.xls')
+
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
@@ -233,7 +247,7 @@ plotMeanFC = function(m, dat, p.cut, title){
   col = rep('grey', length.out=(nrow(dat)))
   col[dat$p.adj < p.cut] = 'red'
   #mh = cut(m, breaks=quantile(m, 0:50/50), include.lowest = T)
-  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC', ylim=c(-1.5, 1.5))
+  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC', ylim=c(-1.5, 1.5), cex=0.6)
 }
 
 dfGenes = data.frame(p.adj=dfResults$adj.P.Val, logfc=dfResults$logFC)
@@ -286,7 +300,7 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 ## save this object in the database for future use
 ## NOTE: don't run this segment of code again as object is already saved
 ## commenting for safety
-# n = make.names(paste('list of negative binomial glm objects for organoids project rds'))
+# n = make.names(paste('list of negative binomial glm objects for organoids project with clp_vs_compM contrast rds'))
 # n2 = paste0('~/Data/MetaData/', n)
 # save(lGlm, file=n2)
 # 
@@ -295,7 +309,7 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 # dbListTables(db)
 # dbListFields(db, 'MetaFile')
 # df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='list of negative binomial glm objects for organoids project fit using laplace function')
+#                 comment='list of negative binomial glm objects for organoids project fit using laplace function with clp_vs_compM contrast')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 # dbDisconnect(db)
 
@@ -318,7 +332,7 @@ dim(m1)
 
 matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Positive Fold Change', xaxt='n',
         ylim=c(-2, 2))
-axis(side = 1, labels = fGroups, at = 1:9)
+axis(side = 1, labels = fGroups, at = 1:6)
 abline(h = 0, lty=2, lwd=0.8)
 gn = select(org.Mm.eg.db, keys = rownames(m1), keytype = 'ENTREZID', columns = 'SYMBOL')
 legend('topleft', legend = gn$SYMBOL, fill=1:5)
@@ -340,7 +354,7 @@ dim(m1)
 
 matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Negative Fold Change', xaxt='n',
         ylim=c(-2, 2))
-axis(side = 1, labels = fGroups, at = 1:9)
+axis(side = 1, labels = fGroups, at = 1:6)
 abline(h = 0, lty=2, lwd=0.8)
 gn = select(org.Mm.eg.db, keys = rownames(m1), keytype = 'ENTREZID', columns = 'SYMBOL')
 legend('topleft', legend = gn$SYMBOL, fill=1:5)
