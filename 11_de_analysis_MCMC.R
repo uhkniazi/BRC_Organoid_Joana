@@ -122,7 +122,7 @@ modelFunction = function(dat){
   ## you can see the starting values 
   start2 = op$par
   names(start2) = names(start)
-  laplace(mylogpost, start, lData)
+  laplace(mylogpost, start2, lData)
 }
 
 mDat = exprs(oExp.norm)
@@ -247,11 +247,11 @@ plotMeanFC = function(m, dat, p.cut, title){
   col = rep('grey', length.out=(nrow(dat)))
   col[dat$p.adj < p.cut] = 'red'
   #mh = cut(m, breaks=quantile(m, 0:50/50), include.lowest = T)
-  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC', ylim=c(-1.5, 1.5), cex=0.6)
+  plot(m, dat$logfc, col=col, pch=20, main=title, xlab='log Mean', ylab='logFC', ylim=c(-2, 2), cex=0.6)
 }
 
 dfGenes = data.frame(p.adj=dfResults$adj.P.Val, logfc=dfResults$logFC)
-iMean = rowMeans(mDat[dfResults$ENTREZID,])
+iMean = rowMeans(mDat[as.character(dfResults$ENTREZID),])
 
 plotMeanFC(log(iMean), dfGenes, 0.1, 'MA Plot')
 
