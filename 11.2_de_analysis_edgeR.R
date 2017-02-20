@@ -96,7 +96,7 @@ mModMatrix = model.matrix(~ fCondition)
 colnames(mModMatrix) = levels(fCondition)
 #oEdge = estimateDisp(oEdge, mModMatrix, )
 oEdge = estimateCommonDisp(oEdge)
-oEdge = estimateTagwiseDisp(oEdge, prior.n = 10)
+oEdge = estimateTagwiseDisp(oEdge, prior.df = 1)
 oEdge.glm = glmFit(oEdge, mModMatrix)
 oLrt = glmLRT(oEdge.glm, coef=3)
 
@@ -145,7 +145,7 @@ dfPlot = cbind(dfPlot[rn,], df[rn,])
 dfPlot = na.omit(dfPlot)
 
 ## write csv file
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.SI_compM_edgeR.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.SI_compM_edgeR_df1.xls')
 
 ## what is the concordance between the 3 results 
 dfEdgeR = dfPlot
