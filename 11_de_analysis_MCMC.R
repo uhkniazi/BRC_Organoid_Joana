@@ -65,7 +65,7 @@ library(LearnBayes)
 library(MASS)
 ## define log posterior
 mylogpost = function(theta, data){
-  size = theta['size']
+  size = exp(theta['size'])
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   # hyperparameters for the hierarchichal standard deviation parameter
@@ -73,6 +73,7 @@ mylogpost = function(theta, data){
   ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
+  ivSizeParam = data$sizeParam
   x = data$pred
   y = data$resp
   ## create model matrix to get fitted value
@@ -84,7 +85,8 @@ mylogpost = function(theta, data){
   mCoef = matrix(c(beta0, beta1), nrow = 2)
   mu = exp(mModMatrix %*% mCoef)
   val = sum(lf(y, mu))
-  ret = val + dnorm(beta0, 0, betaSigma, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dunif(size, 1, 1e+3, log=T) +
+  ret = val + dnorm(beta0, 0, betaSigma, log=T) + dnorm(beta1, 0, betaSigma, log=T) + 
+    dgamma(size, shape = ivSizeParam['shape'], rate = ivSizeParam['rate'], log=T) +
     dgamma(betaSigma, shape = ivBetaParam['shape'], rate = ivBetaParam['rate'], log=T)
   return(ret)
 }
@@ -105,6 +107,15 @@ getOptimizedSummary = function(obj){
 }
 
 ############################### fit the model on multiple genes
+## calculate the distribution for sizes
+ivSizes = apply(mDat, 1, function(x){
+  getsize = function(X) fitdistr(as.integer(X), 'negative binomial')$estimate['size'];
+  tryCatch(expr = getsize(x), error=function(e) NULL)
+})
+ivSizes = unlist(ivSizes)
+
+iSizeParam = unlist(gammaShRaFromModeSD(mean(ivSizes), sd(ivSizes)))
+
 modelFunction = function(dat){
   ## prepare data before fitting
   dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
@@ -114,9 +125,10 @@ modelFunction = function(dat){
   # set parameters for optimizer
   lData = list(resp=dfData$resp, pred=dfData$pred)
   lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
-  start = c('size'=temp, 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
+  lData$sizeParam = iSizeParam
+  start = c('size'=log(temp), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
-  op = optim(start, mylogpost, control = list(fnscale = -1, maxit=10000), data=lData)
+  op = optim(start, mylogpost, control = list(fnscale = -1, maxit=1000), data=lData)
   # see results of optimiser
   if (op$convergence) warning('Optimizer convergence failed')
   ## you can see the starting values 
@@ -208,7 +220,7 @@ dim(dfPlot); dim(dfResults)
 
 ## write csv file
 
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
