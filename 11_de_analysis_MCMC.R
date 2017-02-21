@@ -39,7 +39,7 @@ load(n)
 dim(oExp.norm)
 temp = exprs(oExp.norm)
 # perform independent filtering 
-iCutoff = 2
+iCutoff = 4
 fKeep = rowMeans(temp) > iCutoff
 table(fKeep)
 oExp.norm = oExp.norm[fKeep,]
@@ -121,7 +121,7 @@ iSizeParam = unlist(gammaShRaFromModeSD(mean(ivSizes), sd(ivSizes)))
 
 modelFunction = function(dat){
   ## prepare data before fitting
-  dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
+  dfData = data.frame(resp=as.integer(mDat[dat,])+1, pred=fCondition)
   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
   names(temp) = NULL
   # set starting values for optimizer and 
@@ -223,7 +223,7 @@ dim(dfPlot); dim(dfResults)
 
 ## write csv file
 
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef_plus1.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
@@ -268,7 +268,7 @@ plotMeanFC = function(m, dat, p.cut, title){
 dfGenes = data.frame(p.adj=dfResults$adj.P.Val, logfc=dfResults$logFC)
 iMean = rowMeans(mDat[as.character(dfResults$ENTREZID),])
 
-plotMeanFC(log(iMean), dfGenes, 0.05, 'MA Plot')
+plotMeanFC(log(iMean), dfGenes, 0.05, 'MA Plot - Bayes')
 
 
 ### make some heatmaps
@@ -315,18 +315,18 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 ## save this object in the database for future use
 ## NOTE: don't run this segment of code again as object is already saved
 ## commenting for safety
-# n = make.names(paste('list of negative binomial glm objects for organoids project with 3 coef rds'))
-# n2 = paste0('~/Data/MetaData/', n)
-# save(lGlm, file=n2)
-# 
-# library('RMySQL')
-# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-# dbListTables(db)
-# dbListFields(db, 'MetaFile')
-# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='list of negative binomial glm objects for organoids project fit using laplace function with 3 coefficients')
-# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-# dbDisconnect(db)
+n = make.names(paste('list of negative binomial glm objects for organoids project with 3 coef plus 1 rds'))
+n2 = paste0('~/Data/MetaData/', n)
+save(lGlm, file=n2)
+
+library('RMySQL')
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+dbListTables(db)
+dbListFields(db, 'MetaFile')
+df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+                comment='list of negative binomial glm objects for organoids project fit using laplace function with 3 coefficients plus 1 added to data')
+dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+dbDisconnect(db)
 
 head(dfResults)
 dfResults = dfResults[order(dfResults$adj.P.Val, decreasing = F),]
