@@ -46,19 +46,21 @@ oExp.norm = oExp.norm[fKeep,]
 dim(oExp.norm)
 
 ## prepare data to fit model
-fCondition = as.character(oExp.norm$fCondition)
-table(fCondition)
-# drop the si
-f = which(fCondition == 'SI')
-f
-oExp.norm = oExp.norm[,-f]
-dim(oExp.norm)
-# keep the others
-fCondition = as.character(oExp.norm$fCondition)
-table(fCondition)
-fCondition[fCondition != 'CLP_SI'] = 'Media'
-fCondition = factor(fCondition, levels = c('Media', 'CLP_SI'))
+# fCondition = as.character(oExp.norm$fCondition)
+# table(fCondition)
+# # drop the si
+# f = which(fCondition == 'SI')
+# f
+# oExp.norm = oExp.norm[,-f]
+# dim(oExp.norm)
+# # keep the others
+# fCondition = as.character(oExp.norm$fCondition)
+# table(fCondition)
+# fCondition[fCondition != 'CLP_SI'] = 'Media'
+# fCondition = factor(fCondition, levels = c('Media', 'CLP_SI'))
 mDat = exprs(oExp.norm)
+fCondition = oExp.norm$fCondition
+levels(fCondition)
 
 #### define function to optimize
 library(LearnBayes)
@@ -68,8 +70,9 @@ mylogpost = function(theta, data){
   size = exp(theta['size'])
   beta0 = theta['beta0']
   beta1 = theta['beta1']
+  beta2 = theta['beta2']
   # hyperparameters for the hierarchichal standard deviation parameter
-  betaSigma = exp(theta['betaSigma']) + 1 # maybe add a one to prevent zero variance
+  betaSigma = exp(theta['betaSigma']) #+ 0.5 # maybe add a one to prevent zero variance
   ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
@@ -82,24 +85,24 @@ mylogpost = function(theta, data){
   lf = function(dat, pred){
     return(log(dnbinom(dat, size = size, mu = pred)))
   }
-  mCoef = matrix(c(beta0, beta1), nrow = 2)
+  mCoef = matrix(c(beta0, beta1, beta2), nrow = 3)
   mu = exp(mModMatrix %*% mCoef)
   val = sum(lf(y, mu))
-  ret = val + dnorm(beta0, 0, betaSigma, log=T) + dnorm(beta1, 0, betaSigma, log=T) + 
+  ret = val + dnorm(beta0, 0, betaSigma, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dnorm(beta2, 0, betaSigma, log=T) + 
     dgamma(size, shape = ivSizeParam['shape'], rate = ivSizeParam['rate'], log=T) +
     dgamma(betaSigma, shape = ivBetaParam['shape'], rate = ivBetaParam['rate'], log=T)
   return(ret)
 }
 
 getOptimizedPValue = function(obj){
-  se = sqrt(diag(obj$var))[c('beta0', 'beta1')]
-  m = obj$mode[c('beta0', 'beta1')]
+  se = sqrt(diag(obj$var))[c('beta0', 'beta1', 'beta2')]
+  m = obj$mode[c('beta0', 'beta1', 'beta2')]
   pnorm(-abs(m/se))*2
 }
 
 getOptimizedSummary = function(obj){
-  se = sqrt(diag(obj$var))['beta1']
-  m = obj$mode['beta1']
+  se = sqrt(diag(obj$var))['beta2']
+  m = obj$mode['beta2']
   p = pnorm(-abs(m/se))*2
   ret  = c('Coef' = round(m, 3), 'SE'=round(se, 3), 'P-Value'=signif(p, 3))
   names(ret) = c('Coef', 'SE', 'P-Value')
@@ -126,7 +129,7 @@ modelFunction = function(dat){
   lData = list(resp=dfData$resp, pred=dfData$pred)
   lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
   lData$sizeParam = iSizeParam
-  start = c('size'=log(temp), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 
+  start = c('size'=log(temp+0.5), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 'beta2' = 0, 
             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
   op = optim(start, mylogpost, control = list(fnscale = -1, maxit=1000), data=lData)
   # see results of optimiser
@@ -220,7 +223,7 @@ dim(dfPlot); dim(dfResults)
 
 ## write csv file
 
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
@@ -253,7 +256,7 @@ hist(dfResults$logFC)
 hist(dfResults$P.Value)
 hist(dfResults$adj.P.Val)
 
-table(dfResults$adj.P.Val < 0.1)
+table(dfResults$adj.P.Val < 0.05)
 
 plotMeanFC = function(m, dat, p.cut, title){
   col = rep('grey', length.out=(nrow(dat)))
@@ -265,12 +268,12 @@ plotMeanFC = function(m, dat, p.cut, title){
 dfGenes = data.frame(p.adj=dfResults$adj.P.Val, logfc=dfResults$logFC)
 iMean = rowMeans(mDat[as.character(dfResults$ENTREZID),])
 
-plotMeanFC(log(iMean), dfGenes, 0.1, 'MA Plot')
+plotMeanFC(log(iMean), dfGenes, 0.05, 'MA Plot')
 
 
 ### make some heatmaps
 fSamples = fCondition
-rn = rownames(dfResults[dfResults$adj.P.Val < 0.1 , ])
+rn = rownames(dfResults[dfResults$adj.P.Val < 0.05 , ])
 dim(mDat)
 m1 = log(mDat[rn,]+1)
 dim(m1)
@@ -312,7 +315,7 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 ## save this object in the database for future use
 ## NOTE: don't run this segment of code again as object is already saved
 ## commenting for safety
-# n = make.names(paste('list of negative binomial glm objects for organoids project with clp_vs_compM contrast rds'))
+# n = make.names(paste('list of negative binomial glm objects for organoids project with 3 coef rds'))
 # n2 = paste0('~/Data/MetaData/', n)
 # save(lGlm, file=n2)
 # 
@@ -321,7 +324,7 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 # dbListTables(db)
 # dbListFields(db, 'MetaFile')
 # df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-#                 comment='list of negative binomial glm objects for organoids project fit using laplace function with clp_vs_compM contrast')
+#                 comment='list of negative binomial glm objects for organoids project fit using laplace function with 3 coefficients')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 # dbDisconnect(db)
 
@@ -342,9 +345,9 @@ fGroups = fGroups[order(fGroups)]
 head(m1)
 dim(m1)
 
-matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Positive Fold Change', xaxt='n',
+matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Positive Fold Change - Bayes', xaxt='n',
         ylim=c(-2, 2))
-axis(side = 1, labels = fGroups, at = 1:6)
+axis(side = 1, labels = fGroups, at = 1:9, cex.axis=0.8, las=2)
 abline(h = 0, lty=2, lwd=0.8)
 gn = select(org.Mm.eg.db, keys = rownames(m1), keytype = 'ENTREZID', columns = 'SYMBOL')
 legend('topleft', legend = gn$SYMBOL, fill=1:5)
@@ -364,10 +367,10 @@ fGroups = fGroups[order(fGroups)]
 head(m1)
 dim(m1)
 
-matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Negative Fold Change', xaxt='n',
+matplot(scale(t(m1)), type='l', lty=1, lwd=2, col=1:5, xlab='Samples', ylab='Z Scale Expression', main='Negative Fold Change - Bayes', xaxt='n',
         ylim=c(-2, 2))
-axis(side = 1, labels = fGroups, at = 1:6)
+axis(side = 1, labels = fGroups, at = 1:9, cex.axis=0.8, las=2)
 abline(h = 0, lty=2, lwd=0.8)
 gn = select(org.Mm.eg.db, keys = rownames(m1), keytype = 'ENTREZID', columns = 'SYMBOL')
-legend('topleft', legend = gn$SYMBOL, fill=1:5)
+legend('topright', legend = gn$SYMBOL, fill=1:5)
 
