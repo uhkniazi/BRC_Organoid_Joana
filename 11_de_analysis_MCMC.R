@@ -67,12 +67,12 @@ library(LearnBayes)
 library(MASS)
 ## define log posterior
 mylogpost = function(theta, data){
-  size = max(exp(theta['size']),1)
+  size = max(exp(theta['size']),0.1)
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   beta2 = theta['beta2']
   # hyperparameters for the hierarchichal standard deviation parameter
-  betaSigma = exp(theta['betaSigma']) #+ 0.5 # maybe add a one to prevent zero variance
+  betaSigma = theta['betaSigma'] #+ 0.5 # maybe add a one to prevent zero variance
   ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
@@ -88,7 +88,7 @@ mylogpost = function(theta, data){
   mCoef = matrix(c(beta0, beta1, beta2), nrow = 3)
   mu = exp(mModMatrix %*% mCoef)
   val = sum(lf(y, mu))
-  ret = val + dnorm(beta0, 0, betaSigma, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dnorm(beta2, 0, betaSigma, log=T) + 
+  ret = val + dnorm(beta0, 0, 10^2, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dnorm(beta2, 0, betaSigma, log=T) + 
     dgamma(size, shape = ivSizeParam['shape'], rate = ivSizeParam['rate'], log=T) +
     dgamma(betaSigma, shape = ivBetaParam['shape'], rate = ivBetaParam['rate'], log=T)
   return(ret)
@@ -127,17 +127,36 @@ modelFunction = function(dat){
   # set starting values for optimizer and 
   # set parameters for optimizer
   lData = list(resp=dfData$resp, pred=dfData$pred)
+  # hyper-hyperparameters for deflection variance, calculated using the data
   lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
+  # gamma hyperparameter for the size 
   lData$sizeParam = iSizeParam
   start = c('size'=log(temp+0.5), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 'beta2' = 0, 
-            'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
-  op = optim(start, mylogpost, control = list(fnscale = -1, maxit=10000), data=lData)
-  # see results of optimiser
-  if (op$convergence) warning('Optimizer convergence failed')
-  ## you can see the starting values 
-  start2 = op$par
-  names(start2) = names(start)
-  laplace(mylogpost, start2, lData)
+            'betaSigma'=log(sd(dfData$resp)))
+  ## redefine the laplace function
+  mylaplace = function (logpost, mode, ...) 
+  {
+    options(warn = -1)
+    fit = optim(mode, logpost, gr = NULL, ..., hessian = TRUE, 
+                control = list(fnscale = -1, maxit=10000))
+    options(warn = 0)
+    mode = fit$par
+    h = -solve(fit$hessian)
+    p = length(mode)
+    int = p/2 * log(2 * pi) + 0.5 * log(det(h)) + logpost(mode, 
+                                                          ...)
+    stuff = list(mode = mode, var = h, int = int, converge = fit$convergence == 
+                   0)
+    return(stuff)
+  }
+  # op = optim(start, mylogpost, control = list(fnscale = -1, maxit=10000), data=lData)
+  # # see results of optimiser
+  # if (op$convergence) warning('Optimizer convergence failed')
+  # ## you can see the starting values 
+  # start2 = op$par
+  # names(start2) = names(start)
+  # laplace(mylogpost, start2, lData)
+  mylaplace(mylogpost, start, lData)
 }
 
 mDat = exprs(oExp.norm)
