@@ -67,7 +67,7 @@ library(LearnBayes)
 library(MASS)
 ## define log posterior
 mylogpost = function(theta, data){
-  size = exp(theta['size'])
+  size = max(exp(theta['size']),1)
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   beta2 = theta['beta2']
@@ -117,11 +117,11 @@ ivSizes = apply(mDat, 1, function(x){
 })
 ivSizes = unlist(ivSizes)
 
-iSizeParam = unlist(gammaShRaFromModeSD(mean(ivSizes), sd(ivSizes)))
+iSizeParam = unlist(gammaShRaFromModeSD(sd(ivSizes)/2, 2*sd(ivSizes)))
 
 modelFunction = function(dat){
   ## prepare data before fitting
-  dfData = data.frame(resp=as.integer(mDat[dat,])+1, pred=fCondition)
+  dfData = data.frame(resp=as.integer(mDat[dat,]), pred=fCondition)
   temp = fitdistr(dfData$resp, 'negative binomial')$estimate['size']
   names(temp) = NULL
   # set starting values for optimizer and 
@@ -131,7 +131,7 @@ modelFunction = function(dat){
   lData$sizeParam = iSizeParam
   start = c('size'=log(temp+0.5), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 'beta2' = 0, 
             'betaSigma'=log(mean(rgamma(1000, shape = lData$betaParam['shape'], rate = lData$betaParam['rate']))))
-  op = optim(start, mylogpost, control = list(fnscale = -1, maxit=1000), data=lData)
+  op = optim(start, mylogpost, control = list(fnscale = -1, maxit=10000), data=lData)
   # see results of optimiser
   if (op$convergence) warning('Optimizer convergence failed')
   ## you can see the starting values 
@@ -223,7 +223,7 @@ dim(dfPlot); dim(dfResults)
 
 ## write csv file
 
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef_plus1.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef_noplus1.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
@@ -256,7 +256,7 @@ hist(dfResults$logFC)
 hist(dfResults$P.Value)
 hist(dfResults$adj.P.Val)
 
-table(dfResults$adj.P.Val < 0.05)
+table(dfResults$adj.P.Val < 0.01)
 
 plotMeanFC = function(m, dat, p.cut, title){
   col = rep('grey', length.out=(nrow(dat)))
