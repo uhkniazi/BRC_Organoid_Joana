@@ -67,7 +67,7 @@ library(LearnBayes)
 library(MASS)
 ## define log posterior
 mylogpost = function(theta, data){
-  size = max(exp(theta['size']),0.1)
+  size = exp(theta['size'])
   beta0 = theta['beta0']
   beta1 = theta['beta1']
   beta2 = theta['beta2']
@@ -76,7 +76,7 @@ mylogpost = function(theta, data){
   ##if (betaSigma <= 0) return(-Inf)
   # hyper-hyperparameters for the hierarchichal standard deviation parameter
   ivBetaParam = data$betaParam
-  ivSizeParam = data$sizeParam
+  #ivSizeParam = data$sizeParam
   x = data$pred
   y = data$resp
   ## create model matrix to get fitted value
@@ -89,7 +89,7 @@ mylogpost = function(theta, data){
   mu = exp(mModMatrix %*% mCoef)
   val = sum(lf(y, mu))
   ret = val + dnorm(beta0, 0, 10^2, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dnorm(beta2, 0, betaSigma, log=T) + 
-    dgamma(size, shape = ivSizeParam['shape'], rate = ivSizeParam['rate'], log=T) +
+    dunif(size, 1, 1e4, log=T) +
     dgamma(betaSigma, shape = ivBetaParam['shape'], rate = ivBetaParam['rate'], log=T)
   return(ret)
 }
@@ -111,13 +111,13 @@ getOptimizedSummary = function(obj){
 
 ############################### fit the model on multiple genes
 ## calculate the distribution for sizes
-ivSizes = apply(mDat, 1, function(x){
-  getsize = function(X) fitdistr(as.integer(X), 'negative binomial')$estimate['size'];
-  tryCatch(expr = getsize(x), error=function(e) NULL)
-})
-ivSizes = unlist(ivSizes)
-
-iSizeParam = unlist(gammaShRaFromModeSD(sd(ivSizes)/2, 2*sd(ivSizes)))
+# ivSizes = apply(mDat, 1, function(x){
+#   getsize = function(X) fitdistr(as.integer(X), 'negative binomial')$estimate['size'];
+#   tryCatch(expr = getsize(x), error=function(e) NULL)
+# })
+# ivSizes = unlist(ivSizes)
+# 
+# iSizeParam = unlist(gammaShRaFromModeSD(sd(ivSizes)/2, 2*sd(ivSizes)))
 
 modelFunction = function(dat){
   ## prepare data before fitting
@@ -128,17 +128,19 @@ modelFunction = function(dat){
   # set parameters for optimizer
   lData = list(resp=dfData$resp, pred=dfData$pred)
   # hyper-hyperparameters for deflection variance, calculated using the data
-  lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
-  # gamma hyperparameter for the size 
-  lData$sizeParam = iSizeParam
-  start = c('size'=log(temp+0.5), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 'beta2' = 0, 
+  #lData$betaParam = unlist(gammaShRaFromModeSD(mode = log(sd(dfData$resp+0.5)/2), sd = log(2*sd(dfData$resp+0.5))))
+  # use a jeffery's prior 
+  lData$betaParam = c('shape'=0.5, 'rate'=0.0001)
+  # # gamma hyperparameter for the size 
+  # lData$sizeParam = iSizeParam
+  start = c('size'=log(max(temp, 1)), 'beta0'=log(mean(dfData$resp)), 'beta1'=0, 'beta2' = 0, 
             'betaSigma'=log(sd(dfData$resp)))
   ## redefine the laplace function
   mylaplace = function (logpost, mode, ...) 
   {
     options(warn = -1)
     fit = optim(mode, logpost, gr = NULL, ..., hessian = TRUE, 
-                control = list(fnscale = -1, maxit=10000))
+                control = list(fnscale = -1, maxit=1000))
     options(warn = 0)
     mode = fit$par
     h = -solve(fit$hessian)
