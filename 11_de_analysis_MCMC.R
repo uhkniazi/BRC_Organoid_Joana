@@ -89,8 +89,13 @@ mylogpost = function(theta, data){
   mCoef = matrix(c(beta0, beta1, beta2), nrow = 3)
   mu = exp(mModMatrix %*% mCoef)
   val = sum(lf(y, mu))
-  ret = val + dnorm(beta0, 0, 10^2, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dnorm(beta2, 0, betaSigma, log=T) + 
-    dunif(size, 1, 1e5, log=T) +
+  ## notice that we share betaSigma hyperparameter with all 3 coefficients, if we desire even more shrinkage
+  ## then set beta0 the baseline to a constant e.g. 10^2, this will free up this parameter to shrink even further
+  ## and hence shrink the beta1 and beta2. Furthermore, the size parameter is not restricted and has a very large range
+  ## this allows the model to assign extra unexplained variance to size while shrinking the coefficients. If size is fixed or too 
+  ## restrictive, then you may get the correct betas but their standard deviations will be high i.e. the betaSigma won't shrink enough.
+  ret = val + dnorm(beta0, 0, betaSigma, log=T) + dnorm(beta1, 0, betaSigma, log=T) + dnorm(beta2, 0, betaSigma, log=T) + 
+    dunif(size, 1, 1e10, log=T) +
     dgamma(betaSigma, shape = ivBetaParam['shape'], rate = ivBetaParam['rate'], log=T)
   return(ret)
 }
@@ -245,7 +250,7 @@ dim(dfPlot); dim(dfResults)
 
 ## write csv file
 
-write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef_noplus1.xls')
+write.csv(dfPlot, file='Results/DEAnalysis_CLP_SI.vs.Media_sizePrior_3coef_mar01.xls')
 
 dfGenes = data.frame(P.Value=dfPlot$P.Value, logFC=dfPlot$logFC, adj.P.Val = dfPlot$adj.P.Val, SYMBOL=dfPlot$SYMBOL)
 
@@ -295,7 +300,7 @@ plotMeanFC(log(iMean), dfGenes, 0.05, 'MA Plot - Bayes')
 
 ### make some heatmaps
 fSamples = fCondition
-rn = rownames(dfResults[dfResults$adj.P.Val < 0.05 , ])
+rn = rownames(dfResults[dfResults$adj.P.Val < 0.01 , ])
 dim(mDat)
 m1 = log(mDat[rn,]+1)
 dim(m1)
@@ -337,18 +342,18 @@ aheatmap(mCounts, color=c('blue', 'black', 'red'), breaks=0, scale='none', Rowv 
 ## save this object in the database for future use
 ## NOTE: don't run this segment of code again as object is already saved
 ## commenting for safety
-n = make.names(paste('list of negative binomial glm objects for organoids project with 3 coef plus 1 rds'))
-n2 = paste0('~/Data/MetaData/', n)
-save(lGlm, file=n2)
-
-library('RMySQL')
-db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-dbListTables(db)
-dbListFields(db, 'MetaFile')
-df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-                comment='list of negative binomial glm objects for organoids project fit using laplace function with 3 coefficients plus 1 added to data')
-dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-dbDisconnect(db)
+# n = make.names(paste('list of negative binomial glm objects for organoids project with 3 coef and some shrinkage rds'))
+# n2 = paste0('~/Data/MetaData/', n)
+# save(lGlm, file=n2)
+# 
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='list of negative binomial glm objects for organoids project fit using custom laplace function with 3 coefficients and some shrinkage')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
 
 head(dfResults)
 dfResults = dfResults[order(dfResults$adj.P.Val, decreasing = F),]
