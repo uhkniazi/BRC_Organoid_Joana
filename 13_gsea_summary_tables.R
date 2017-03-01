@@ -25,10 +25,10 @@ ldfData.up = ldfData[grepl(lFiles, pattern = 'upregulated')]
 ldfData.down = ldfData[grepl(lFiles, pattern = 'downregulated')]
 
 ## set the names for each contrast
-sn = c('CLP_SI_vs_Media') 
+sn = c('Bayes', 'EdgeR') 
 names(ldfData.up) = sn
 
-sn = c('CLP_SI_vs_Media') 
+sn = c('Bayes', 'EdgeR')  
 names(ldfData.down) = sn
 
 ## create a table/matrix of p-values
@@ -40,7 +40,7 @@ rownames(mMerged.down) = rownames(ldfData.down[[1]])
 
 # sanity check
 identical(rownames(mMerged.up), rownames(mMerged.down))
-cn = c('CLP_SI_vs_Media') 
+cn = c('Bayes', 'EdgeR')  
 colnames(mMerged.up) = paste(cn, 'up', sep='-')
 colnames(mMerged.down) = paste(cn, 'down', sep='-')
 
@@ -93,7 +93,7 @@ tail(dfMerged.c2)
 #write.csv(dfMerged.c2, file='Results/gsea_msigdb_all_merged.xls')
 ## keep only the ones with significant p-values
 table(dfMerged.c2$groups)
-dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 2,]
+dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 3,]
 # 
 # table(dfMerged.c5$groups)
 # dfMerged.c5.sub = dfMerged.c5[dfMerged.c5$groups != 2,]
@@ -104,10 +104,10 @@ dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 2,]
 write.csv(dfMerged.c2.sub, file='Results/gsea_msigdb_significant_all_merged.csv')
 
 ### heatmaps
-dfMerged = dfMerged.c2
+dfMerged = dfMerged.c2.sub
 df = dfMerged
 head(df)
-mMat = as.matrix(df[,c(1:2)])
+mMat = as.matrix(df[,c(1:4)])
 head(mMat)
 mMat = -10*log10(mMat+1e-16)
 g1 = df[,'groups']

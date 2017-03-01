@@ -9,8 +9,8 @@ source('header.R')
 library(gage)
 
 ## load gene expression data
-dfContrast = read.csv(file='Results/DEAnalysis_CLP_SI.vs.Media_3.xls', stringsAsFactors = F)
-dfContrast = dfContrast[,-1]
+dfContrast = read.csv(file=file.choose(), stringsAsFactors = F, row.names=1, header=T)
+#dfContrast = dfContrast[,-1]
 
 ## load msig db data
 oMsigGS = readList(file.choose())
@@ -29,7 +29,7 @@ oMsigGS = readList(file.choose())
 #dfContrast = dfContrast4
 # for a contrats of choice create the list
 iContFc = dfContrast$logFC
-names(iContFc) = as.character(dfContrast[,1])
+names(iContFc) = as.character(dfContrast[,'SYMBOL'])
 head(iContFc)
 head(dfContrast)
 
@@ -45,8 +45,8 @@ str(dfLess)
 i = which(dfLess$p.val < 0.01)
 rownames(dfLess[i,])
 
-write.csv(dfGreater[,c('p.val', 'q.val', 'set.size')], file='Results/upregulated_pathways_msigdb_all.xls')
-write.csv(dfLess[,c('p.val', 'q.val', 'set.size')], file='Results/downregulated_pathways_msigdb_all.xls')
+write.csv(dfGreater[,c('p.val', 'q.val', 'set.size')], file='Results/Bayes_upregulated_pathways_msigdb_all.xls')
+write.csv(dfLess[,c('p.val', 'q.val', 'set.size')], file='Results/Bayes_downregulated_pathways_msigdb_all.xls')
 
 
 
